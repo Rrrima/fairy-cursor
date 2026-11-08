@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 
 let S: CGFloat = 1024
-func render(_ path: String) {
+func render(_ path: String, beadOnly: Bool) {
     let cs = CGColorSpace(name: CGColorSpace.displayP3)!
     let ctx = CGContext(data: nil, width: Int(S), height: Int(S), bitsPerComponent: 8, bytesPerRow: 0, space: cs, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
     ctx.translateBy(x: 0, y: S); ctx.scaleBy(x: 1, y: -1) // top-left origin
@@ -14,6 +14,7 @@ func render(_ path: String) {
     let tile = CGRect(x: inset, y: inset, width: side, height: side)
     let tilePath = CGPath(roundedRect: tile, cornerWidth: side * 0.225, cornerHeight: side * 0.225, transform: nil)
 
+    if !beadOnly {
     // tile shadow
     ctx.saveGState()
     ctx.setShadow(offset: CGSize(width: 0, height: 10), blur: 28, color: c(0, 0, 0, 0.16))
@@ -29,13 +30,15 @@ func render(_ path: String) {
     // tile rim
     ctx.saveGState(); ctx.addPath(tilePath); ctx.setStrokeColor(c(1, 1, 1, 0.9)); ctx.setLineWidth(3); ctx.strokePath(); ctx.restoreGState()
 
+    }
+
     // bead
     let r: CGFloat = 178
     let ctr = CGPoint(x: S/2, y: S/2 - 6)
     let bead = CGRect(x: ctr.x - r, y: ctr.y - r, width: r * 2, height: r * 2)
 
     // soft contact shadow, clipped to the tile
-    ctx.saveGState(); ctx.addPath(tilePath); ctx.clip()
+    ctx.saveGState(); if !beadOnly { ctx.addPath(tilePath); ctx.clip() }
     ctx.translateBy(x: ctr.x, y: ctr.y + r * 0.92); ctx.scaleBy(x: 1, y: 0.32)
     ctx.drawRadialGradient(grad([c(0.20, 0.26, 0.42, 0.20), c(0.20, 0.26, 0.42, 0)], [0, 1]), startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: r * 1.05, options: [])
     ctx.restoreGState()
@@ -67,4 +70,4 @@ func render(_ path: String) {
     let rep = NSBitmapImageRep(cgImage: img)
     try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
 }
-render(CommandLine.arguments[1])
+render(CommandLine.arguments[1], beadOnly: CommandLine.arguments.contains("--bead-only"))

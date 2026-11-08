@@ -4,7 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 TMP="$(mktemp -d)"
 swift scripts/make-icon.swift "$TMP/icon-1024.png"
-sips -z 256 256 "$TMP/icon-1024.png" --out assets/icon.png >/dev/null
+swift scripts/make-icon.swift "$TMP/bead.png" --bead-only
+sips -c 440 440 "$TMP/bead.png" --out "$TMP/bead-crop.png" >/dev/null
+sips -z 128 128 "$TMP/bead-crop.png" --out assets/icon.png >/dev/null
 mkdir "$TMP/AppIcon.iconset"
 for s in 16 32 128 256 512; do
   sips -z $s $s "$TMP/icon-1024.png" --out "$TMP/AppIcon.iconset/icon_${s}x${s}.png" >/dev/null
