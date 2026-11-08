@@ -1,0 +1,11 @@
+.build/
+build/
+*.xcodeproj
+.DS_Store
+.swiftpm/
+Package.resolved
+
+# Demo recordings are large and may show personal screens; publish them as release assets instead.
+demo/
+*.mp4
+*.mov
