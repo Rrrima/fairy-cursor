@@ -1,9 +1,8 @@
 #!/bin/bash
-# Build FairyCursor in release mode and wrap it in a .app bundle at build/Fairy Cursor.app.
-# Usage: scripts/bundle.sh [--run]
+# build in release mode and wrap it in build/Fairy Cursor.app.
+# usage: scripts/bundle.sh [--run]
 set -euo pipefail
 cd "$(dirname "$0")/.."
-export AUSM_ROOT="${AUSM_ROOT:-../AUSM-releasing}"
 
 swift build -c release 2>&1 | grep -E "error|warning: var|Compiling|Build complete" || true
 BIN=".build/release/FairyCursor"
@@ -13,9 +12,9 @@ APP="build/Fairy Cursor.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/FairyCursor"
-cp Resources/Info.plist "$APP/Contents/Info.plist"
-[ -f Resources/AppIcon.icns ] && cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-[ -d Resources/Fonts ] && cp -R Resources/Fonts "$APP/Contents/Resources/Fonts"
+cp resources/Info.plist "$APP/Contents/Info.plist"
+[ -f resources/app-icon.icns ] && cp resources/app-icon.icns "$APP/Contents/Resources/AppIcon.icns"
+[ -d resources/fonts ] && cp -R resources/fonts "$APP/Contents/Resources/Fonts"
 echo -n "APPL????" > "$APP/Contents/PkgInfo"
 # Sign with a stable identity so macOS keeps the Accessibility / Screen Recording grants across
 # rebuilds (an ad-hoc signature changes every build and silently drops them). Falls back to

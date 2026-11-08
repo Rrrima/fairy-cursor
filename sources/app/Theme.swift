@@ -18,7 +18,7 @@ enum Theme {
     /// --border-strong rgba(28,38,58,.14)
     static let hairlineStrong = slate.opacity(0.14)
 
-    /// Barlow (agentic-web's UI face), bundled in Resources/Fonts and registered at launch.
+    /// Barlow (agentic-web's UI face), bundled from resources/fonts and registered at launch.
     static func font(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         let name: String
         switch weight {
