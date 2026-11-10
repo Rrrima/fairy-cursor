@@ -4,9 +4,24 @@ a little glass bead that follows your cursor and carries your screenshots.
 
 ## install
 
-download the latest `fairy-cursor.zip` from [releases](https://github.com/Rrrima/fairy-cursor/releases), move the app to `/Applications` and open it. it lives in the menu bar.
+needs macos 26 and xcode 26 (or just its command line tools: `xcode-select --install`).
 
-needs macos 26.
+```sh
+git clone https://github.com/Rrrima/fairy-cursor && cd fairy-cursor
+scripts/bundle.sh
+cp -R "build/Fairy Cursor.app" /Applications/
+open "/Applications/Fairy Cursor.app"
+```
+
+the first build takes a minute or two. the fairy lives in the menu bar.
+
+then turn it on in **system settings → privacy & security**:
+
+1. **accessibility** → fairy cursor
+2. **screen recording** → fairy cursor
+3. quit fairy from the menu bar and open it again
+
+after you rebuild, macos may forget these. turn them off and on again.
 
 ## use
 
@@ -25,11 +40,10 @@ dropped one by accident? menu bar → restore last screenshot.
 
 nothing leaves your mac.
 
-## build
+## develop
 
 ```sh
-git clone https://github.com/Rrrima/fairy-cursor && cd fairy-cursor
-scripts/bundle.sh --run
+scripts/bundle.sh --run   # rebuild and relaunch
 swift test
 ```
 
