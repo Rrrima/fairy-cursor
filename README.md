@@ -33,4 +33,6 @@ scripts/bundle.sh --run
 swift test
 ```
 
+`scripts/bundle.sh --release` is for maintainers making the official download. you don't need it.
+
 built on [ausm](https://github.com/foundation-interface/AUSM).
