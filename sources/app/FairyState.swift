@@ -72,10 +72,12 @@ final class FairyState: ObservableObject {
 
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
-    func hold(image: CGImage, scale: CGFloat, capturedAt: Date = Date()) {
+    /// `kept`: the screenshot was already saved, so shaking only lets go of it.
+    func hold(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false) {
         pile.push(makeCard(image: image, scale: scale, capturedAt: capturedAt))
         let count = pile.active.count
-        flashHint(count > 1 ? "\(count) screenshots · shake to discard" : "shake to discard", for: 2.4)
+        let verb = kept ? "saved · shake to let go" : "shake to discard"
+        flashHint(count > 1 ? "\(count) screenshots · \(verb)" : verb, for: 2.4)
     }
 
     /// A capture we don't trust (from a screenshot session that had already ended on screen):

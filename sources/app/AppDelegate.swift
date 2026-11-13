@@ -2,7 +2,6 @@ import AppKit
 import CursorMonitorKit
 import FairyCore
 import ScreenshotMonitorKit
-import ServiceManagement
 import SwiftUI
 
 @MainActor
@@ -14,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let notes = NotesController()
     private let summoner = NoteSummoner()
+    private let settings = AppSettings.shared
+    private lazy var settingsWindow = SettingsWindowController(model: SettingsModel(
+        summon: summoner.isEnabled, setSummon: { [weak self] in self?.summoner.isEnabled = $0 },
+        showWhenIdle: state.showWhenIdle, setShowWhenIdle: { [weak self] in self?.state.showWhenIdle = $0 },
+        onNotesFolderChanged: { [weak self] in self?.notes.switchFolder(to: $0) }
+    ))
 
     private var screenshotMonitor: ScreenshotMonitor!
     private var cursorMonitor: CursorMonitor!
@@ -101,6 +106,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func startScreenshotMonitor() {
         var options = ScreenshotMonitor.Options()
         options.writeTempFile = false
+        // Only ⌘⇧3/4/5: ignore other programs running `screencapture` in the background.
+        options.hotkeyOnly = true
         options.debugLogging = debug
         if let bundle = Bundle.main.bundleIdentifier { options.excludedBundleIdentifiers = [bundle] }
         let monitor = ScreenshotMonitor(options: options)
@@ -144,7 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             state.stash(image: capture.image, scale: capture.scale, capturedAt: capture.timestamp)
             return
         }
-        state.hold(image: capture.image, scale: capture.scale, capturedAt: capture.timestamp)
+        let kept = settings.keepScreenshots
+        if kept { ScreenshotSaver.save(capture.image, scale: capture.scale, takenAt: capture.timestamp, in: settings.screenshotsFolder) }
+        state.hold(image: capture.image, scale: capture.scale, capturedAt: capture.timestamp, kept: kept)
         shake.captured()
         log("holding \(state.stack.count)")
     }
@@ -319,62 +328,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        notes.refreshFromDisk()
         let n = state.deliverable.count
+        let kept = settings.keepScreenshots
         let status = n == 0 ? "Nothing held — take a screenshot" : (n == 1 ? "Holding 1 screenshot" : "Holding \(n) screenshots")
         let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
         menu.addItem(statusItem)
         if n > 0 {
-            menu.addItem(NSMenuItem(title: "Discard Top Screenshot", action: #selector(discard), keyEquivalent: ""))
-            if n > 1 { menu.addItem(NSMenuItem(title: "Discard All", action: #selector(discardAll), keyEquivalent: "")) }
+            // When screenshots are kept, letting go doesn't delete anything.
+            menu.addItem(NSMenuItem(title: kept ? "Let Go of Top Screenshot" : "Discard Top Screenshot", action: #selector(discard), keyEquivalent: ""))
+            if n > 1 { menu.addItem(NSMenuItem(title: kept ? "Let Go of All" : "Discard All", action: #selector(discardAll), keyEquivalent: "")) }
         }
         if state.canRestore {
             menu.addItem(NSMenuItem(title: "Restore Last Screenshot", action: #selector(restoreLast), keyEquivalent: ""))
         }
+        if kept {
+            menu.addItem(NSMenuItem(title: "Open Screenshots Folder", action: #selector(openScreenshotsFolder), keyEquivalent: ""))
+        }
         menu.addItem(.separator())
 
-        let summon = NSMenuItem(title: "Hold ⌥ on Empty Space for a Note", action: #selector(toggleNoteSummon), keyEquivalent: "")
-        summon.state = summoner.isEnabled ? .on : .off
-        notes.appendMenuItems(to: menu, summonToggle: summon)
+        notes.appendMenuItems(to: menu)
         menu.addItem(.separator())
 
-        let idle = NSMenuItem(title: "Show Fairy When Empty", action: #selector(toggleShowWhenIdle), keyEquivalent: "")
-        idle.state = state.showWhenIdle ? .on : .off
-        menu.addItem(idle)
-
-        let takeover = NSMenuItem(title: "Replace macOS Screenshot Thumbnail & Auto-Save", action: #selector(toggleTakeover), keyEquivalent: "")
-        takeover.state = SystemScreenshotTakeover.shared.isEnabled ? .on : .off
-        menu.addItem(takeover)
-
-        let login = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
-        menu.addItem(.separator())
-
-        let ax = NSMenuItem(title: (Permissions.accessibility ? "✓ " : "✗ ") + "Accessibility", action: #selector(openAccessibility), keyEquivalent: "")
-        let sr = NSMenuItem(title: (Permissions.screenRecording ? "✓ " : "✗ ") + "Screen Recording", action: #selector(openScreenRecording), keyEquivalent: "")
-        menu.addItem(ax)
-        menu.addItem(sr)
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Fairy Cursor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        // Only shown when something needs doing; otherwise permissions live in Settings.
+        if !Permissions.accessibility {
+            menu.addItem(NSMenuItem(title: "Allow Accessibility…", action: #selector(openAccessibility), keyEquivalent: ""))
+        }
+        if !Permissions.screenRecording {
+            menu.addItem(NSMenuItem(title: "Allow Screen Recording…", action: #selector(openScreenRecording), keyEquivalent: ""))
+        }
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Quit Fairy Cursor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
     }
 
     @objc private func discard() { state.dissolve() }
     @objc private func discardAll() { state.discardAll() }
     @objc private func restoreLast() { state.restoreLast() }
-    @objc private func toggleNoteSummon() { summoner.isEnabled.toggle() }
-    @objc private func toggleShowWhenIdle() { state.showWhenIdle.toggle() }
-    @objc private func toggleTakeover() { SystemScreenshotTakeover.shared.setEnabled(!SystemScreenshotTakeover.shared.isEnabled) }
+    @objc private func openScreenshotsFolder() { AppSettings.open(settings.screenshotsFolder) }
+    @objc private func openSettings() { settingsWindow.show() }
     @objc private func openAccessibility() { Permissions.openAccessibilitySettings() }
     @objc private func openScreenRecording() { Permissions.openScreenRecordingSettings() }
-    @objc private func toggleLaunchAtLogin() {
-        do {
-            if SMAppService.mainApp.status == .enabled { try SMAppService.mainApp.unregister() }
-            else { try SMAppService.mainApp.register() }
-        } catch {
-            log("launch at login: \(error)")
-        }
-    }
 
     private func registerBundledFonts() {
         guard let urls = Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: "Fonts"), !urls.isEmpty else { return }

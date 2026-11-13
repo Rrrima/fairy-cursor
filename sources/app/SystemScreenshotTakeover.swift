@@ -3,15 +3,13 @@ import Foundation
 
 /// Makes the fairy the only visible result of a screenshot: no floating thumbnail in the corner
 /// and no file on the Desktop. macOS keeps writing the file, but into a private folder the fairy
-/// purges. The original settings are remembered and put back when the takeover is turned off or
-/// the app quits.
+/// purges. The original settings are remembered and put back when the app quits.
 @MainActor
 final class SystemScreenshotTakeover {
     static let shared = SystemScreenshotTakeover()
 
     private let domain = "com.apple.screencapture" as CFString
     private let defaults = UserDefaults.standard
-    private let enabledKey = "takeover.enabled"
     private let savedKey = "takeover.saved"          // marker: originals captured
     private let originalLocationKey = "takeover.originalLocation"
     private let originalThumbnailKey = "takeover.originalShowThumbnail"
@@ -21,20 +19,21 @@ final class SystemScreenshotTakeover {
         return base.appendingPathComponent("Fairy Cursor/Captures", isDirectory: true)
     }()
 
-    /// Default on: the point of the fairy is to replace the corner thumbnail + auto-save.
-    var isEnabled: Bool {
-        get { defaults.object(forKey: enabledKey) as? Bool ?? true }
-        set { defaults.set(newValue, forKey: enabledKey) }
+    /// Where macOS saved screenshots before the fairy took over (the Desktop unless the user had
+    /// changed it). The default home for kept screenshots.
+    var originalScreenshotFolder: URL {
+        let stored = defaults.bool(forKey: savedKey) ? defaults.string(forKey: originalLocationKey) : read("location") as? String
+        if let path = stored.map({ NSString(string: $0).expandingTildeInPath }), path != capturesFolder.path {
+            return URL(fileURLWithPath: path, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
     }
 
-    /// Apply the current preference (called at launch).
+    /// Always on while the app runs: the fairy replaces the corner thumbnail and macOS's own file
+    /// (whether screenshots are kept is the fairy's call, see `AppSettings.keepScreenshots`).
     func applyAtLaunch() {
-        if isEnabled { activate() } else { restore() }
-    }
-
-    func setEnabled(_ enabled: Bool) {
-        isEnabled = enabled
-        enabled ? activate() : restore()
+        defaults.removeObject(forKey: "takeover.enabled")   // the old on/off switch
+        activate()
     }
 
     private func activate() {
@@ -63,7 +62,6 @@ final class SystemScreenshotTakeover {
     /// Delete the files macOS wrote into the private folder (it writes them within ~0.5 s of a
     /// capture once the thumbnail is off, so a short delay after each session is enough).
     func purge(olderThan seconds: TimeInterval) {
-        guard isEnabled || seconds == 0 else { return }
         let fm = FileManager.default
         guard let items = try? fm.contentsOfDirectory(at: capturesFolder, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
         for url in items {

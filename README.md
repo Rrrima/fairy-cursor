@@ -33,6 +33,13 @@ after you rebuild, macos may forget these. turn them off and on again.
 
 dropped one by accident? menu bar → restore last screenshot.
 
+## settings
+
+menu bar → settings…
+
+- **keep every screenshot**: off by default, so a screenshot is only saved where you drop it and shaking throws it away. turn it on and every screenshot is saved to a folder you pick as you take it, and shaking just lets go
+- **notes folder**: each note is a markdown file there (`~/Documents/Fairy Notes` by default), so you can open, edit and sync them like any other file
+
 ## permissions
 
 - accessibility: follow the cursor, see what's under it, paste
@@ -47,6 +54,8 @@ scripts/bundle.sh --run   # rebuild and relaunch
 swift test
 ```
 
+to build against a local ausm checkout instead of the published one: `AUSM_ROOT=/path/to/ausm scripts/bundle.sh --run`.
+
 `scripts/bundle.sh --release` is for maintainers making the official download. you don't need it.
 
-built on [ausm](https://github.com/foundation-interface/AUSM).
+built on [ausm](https://github.com/foundation-interface/ausm).

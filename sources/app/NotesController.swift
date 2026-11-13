@@ -4,11 +4,10 @@ import SwiftUI
 /// Owns the note panels: creating, restoring, putting away, deleting, and the menu section.
 @MainActor
 final class NotesController: NSObject {
-    let store = NoteStore()
+    let store = NoteStore(folder: AppSettings.shared.notesFolder)
     private var open: [UUID: (panel: NotePanel, model: NoteModel)] = [:]
     private var observers: [UUID: [NSObjectProtocol]] = [:]
     /// Notes listed directly in the menu; the rest go in a submenu.
-    private let inlineMenuCount = 6
     /// What the fairy is carrying, top card first (empty when its hands are free).
     var carriedScreenshots: () -> [HeldScreenshot] = { [] }
     /// These carried screenshots went into a note; the fairy should let go of (only) them.
@@ -22,6 +21,23 @@ final class NotesController: NSObject {
     }
 
     func flush() { store.flush() }
+
+    /// The notes folder changed: put this folder's notes away (they stay where they are on disk)
+    /// and bring up the ones that were open from the new folder.
+    func switchFolder(to folder: URL) {
+        guard folder != store.folder else { return }
+        for id in Array(open.keys) {
+            store.update(id) { $0.isOpen = true }   // remember it was up, for coming back
+            closePanel(id)
+        }
+        store.switchFolder(to: folder)
+        restore()
+    }
+
+    /// Pick up files added, edited or removed in Finder (called when the menu opens).
+    func refreshFromDisk() {
+        store.refresh(keeping: Set(open.keys))
+    }
 
     /// A note grown out of the summon pill at `mouse` (AppKit coordinates).
     func create(at mouse: CGPoint, origin: NoteOrigin) {
@@ -171,30 +187,20 @@ final class NotesController: NSObject {
     // MARK: - Menu
 
     /// The notes section of the status menu. Holding ⌥ turns each note into "Delete …".
-    func appendMenuItems(to menu: NSMenu, summonToggle: NSMenuItem) {
+    /// "Recent Notes" (the list opens as a submenu on hover) and "Open Notes Folder".
+    func appendMenuItems(to menu: NSMenu) {
         let notes = store.recent
-        menu.addItem(.sectionHeader(title: notes.isEmpty ? "Notes" : "Notes (\(notes.count))"))
+        let recent = NSMenuItem(title: "Recent Notes", action: nil, keyEquivalent: "")
+        let submenu = NSMenu()
         if notes.isEmpty {
-            let empty = NSMenuItem(title: "Hold ⌥ on empty space, then click", action: nil, keyEquivalent: "")
+            let empty = NSMenuItem(title: "No notes yet — hold ⌥ on empty space", action: nil, keyEquivalent: "")
             empty.isEnabled = false
-            menu.addItem(empty)
+            submenu.addItem(empty)
         }
-        for note in notes.prefix(inlineMenuCount) { addItems(for: note, to: menu) }
-        if notes.count > inlineMenuCount {
-            let more = NSMenuItem(title: "Older Notes", action: nil, keyEquivalent: "")
-            let submenu = NSMenu()
-            for note in notes.dropFirst(inlineMenuCount) { addItems(for: note, to: submenu) }
-            more.submenu = submenu
-            menu.addItem(more)
-        }
-
-        menu.addItem(item("New Note", #selector(newNote), key: "n"))
-        let anyOpen = notes.contains { $0.isOpen }
-        let anyAway = notes.contains { !$0.isOpen }
-        if anyAway { menu.addItem(item("Show All Notes", #selector(showAll))) }
-        if anyOpen { menu.addItem(item("Put Away All Notes", #selector(putAwayAll))) }
-        menu.addItem(item("Show Notes Folder", #selector(revealFolder)))
-        menu.addItem(summonToggle)
+        for note in notes { addItems(for: note, to: submenu) }
+        recent.submenu = submenu
+        menu.addItem(recent)
+        menu.addItem(item("Open Notes Folder", #selector(openFolder)))
     }
 
     private func addItems(for note: Note, to menu: NSMenu) {
@@ -218,8 +224,8 @@ final class NotesController: NSObject {
         menu.addItem(delete)
     }
 
-    private func item(_ title: String, _ action: Selector, key: String = "") -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+    private func item(_ title: String, _ action: Selector) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
         item.target = self
         return item
     }
@@ -234,23 +240,7 @@ final class NotesController: NSObject {
         delete(id)
     }
 
-    @objc private func newNote() {
-        let origin = NoteContext.frontmostOrigin()
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main
-        let center = screen.map { CGPoint(x: $0.visibleFrame.midX - NoteLayout.noteSize.width / 2, y: $0.visibleFrame.midY + NoteLayout.noteSize.height / 2) } ?? mouse
-        create(at: center, origin: origin)
-    }
-
-    @objc private func showAll() {
-        for note in store.recent.reversed() { show(note, growsIn: false, focus: false) }
-    }
-
-    @objc private func putAwayAll() {
-        for id in Array(open.keys) { putAway(id) }
-    }
-
-    @objc private func revealFolder() {
-        NSWorkspace.shared.activateFileViewerSelecting([store.folder])
+    @objc private func openFolder() {
+        AppSettings.open(store.folder)
     }
 }
