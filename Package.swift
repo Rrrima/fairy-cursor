@@ -7,7 +7,7 @@ import PackageDescription
 // checkout instead, run with AUSM_ROOT=/path/to/ausm.
 let localAUSM = ProcessInfo.processInfo.environment["AUSM_ROOT"]
 let ausm: Package.Dependency = localAUSM.map { .package(name: "AUSM", path: $0) }
-    ?? .package(url: "https://github.com/foundation-interface/ausm.git", from: "0.1.0")
+    ?? .package(url: "https://github.com/foundation-interface/ausm.git", from: "0.1.1")
 
 let package = Package(
     name: "FairyCursor",

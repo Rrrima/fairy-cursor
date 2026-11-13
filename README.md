@@ -1,21 +1,37 @@
-# <img src="assets/icon.png" width="32" alt="" align="top"> fairy cursor
+# <picture><source media="(prefers-color-scheme: dark)" srcset="assets/icon-dark.png"><img src="assets/icon.png" width="32" alt="" align="top"></picture> fairy cursor
 
-a little glass bead that follows your cursor and carries your screenshots.
+a little fairy that follows your cursor and carries your screenshots: take one, then double-click where it should go.
 
-## install
+needs macos 26.
 
-needs macos 26 and xcode 26 (or just its command line tools: `xcode-select --install`).
+## download
+
+grab `fairy-cursor.zip` from the [latest release](https://github.com/Rrrima/fairy-cursor/releases/latest), unzip it and drag **fairy cursor** into `/Applications`.
+
+the first time you open it, macos may say it can't check the app. open **system settings → privacy & security**, scroll down and click **open anyway**.
+
+## build from source
+
+you need xcode 26, or just its command line tools (`xcode-select --install`).
 
 ```sh
 git clone https://github.com/Rrrima/fairy-cursor && cd fairy-cursor
 scripts/bundle.sh
+```
+
+that builds `build/Fairy Cursor.app` (the first build takes a minute or two). to install it:
+
+```sh
 cp -R "build/Fairy Cursor.app" /Applications/
+```
+
+## run
+
+```sh
 open "/Applications/Fairy Cursor.app"
 ```
 
-the first build takes a minute or two. the fairy lives in the menu bar.
-
-then turn it on in **system settings → privacy & security**:
+it lives in the menu bar; there's no dock icon. then turn it on in **system settings → privacy & security**:
 
 1. **accessibility** → fairy cursor
 2. **screen recording** → fairy cursor
@@ -29,9 +45,9 @@ after you rebuild, macos may forget these. turn them off and on again.
 - double-click a text box to paste it
 - double-click the desktop or a finder window to save it as a png
 - shake to let the top one go. keep shaking to drop them all
-- hold `⌥`, then click, to start a sticky note
+- hold `⌥` on empty space, then click, to start a sticky note
 
-dropped one by accident? menu bar → restore last screenshot.
+dropped one by accident? menu bar → restore last screenshot. your notes are under menu bar → recent notes.
 
 ## settings
 
@@ -47,6 +63,22 @@ menu bar → settings…
 
 nothing leaves your mac.
 
+## change how it works
+
+the fairy doesn't take screenshots itself. it notices yours, so to use different screenshot keys, change them in **system settings → keyboard → keyboard shortcuts → screenshots** and the fairy follows.
+
+everything that watches what you do comes from [ausm](https://github.com/foundation-interface/ausm), an open toolkit for reacting to activity on your mac. if you want the fairy to react to something else, start there:
+
+- **screenshots**: `ScreenshotMonitorKit` ([`device-macos/screenshot-detector`](https://github.com/foundation-interface/ausm/tree/main/device-macos/screenshot-detector)) works out when a `⌘ ⇧ 3/4/5` screenshot is taken and recaptures it
+- **cursor and clicks**: `CursorMonitorKit` ([`device-macos/cursor-plus-plus`](https://github.com/foundation-interface/ausm/tree/main/device-macos/cursor-plus-plus)) reports moves and double-clicks, and what's under the cursor
+
+the fairy's own gestures live in this repo:
+
+- shake: `sources/core/ShakeDetector.swift` (how far, how fast, how many times)
+- what a double-click does where: `sources/core/DropPolicy.swift`, `sources/core/PastePolicy.swift`
+- hold `⌥` for a note: `sources/app/NoteSummoner.swift`
+- how ausm is wired in: `startScreenshotMonitor()` and `startCursorMonitor()` in `sources/app/AppDelegate.swift`
+
 ## develop
 
 ```sh
@@ -54,8 +86,19 @@ scripts/bundle.sh --run   # rebuild and relaunch
 swift test
 ```
 
-to build against a local ausm checkout instead of the published one: `AUSM_ROOT=/path/to/ausm scripts/bundle.sh --run`.
+to build against a local ausm checkout instead of the published one:
 
-`scripts/bundle.sh --release` is for maintainers making the official download. you don't need it.
+```sh
+AUSM_ROOT=/path/to/ausm scripts/bundle.sh --run
+```
 
-built on [ausm](https://github.com/foundation-interface/ausm).
+to make a release zip (`build/fairy-cursor.zip`, apple silicon and intel):
+
+```sh
+scripts/bundle.sh --zip       # ad-hoc signed; people click "open anyway" the first time
+scripts/bundle.sh --release   # developer id signed and notarized; see the top of the script
+```
+
+## license
+
+mit. barlow is under the sil open font license (`resources/fonts/OFL.txt`).

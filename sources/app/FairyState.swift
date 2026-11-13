@@ -49,9 +49,6 @@ final class FairyState: ObservableObject {
     @Published var hint: String?
     /// Incremented to play the "no" wobble on the top sheet.
     @Published var rejectTick = 0
-    @Published var showWhenIdle: Bool = UserDefaults.standard.object(forKey: "showWhenIdle") as? Bool ?? false {
-        didSet { UserDefaults.standard.set(showWhenIdle, forKey: "showWhenIdle") }
-    }
     /// True while the system screenshot UI is up; the fairy steps out of the way.
     @Published var hiddenForCapture = false
 

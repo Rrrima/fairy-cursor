@@ -1,12 +1,18 @@
 #!/bin/bash
-# regenerate resources/app-icon.icns from scripts/make-icon.swift (the liquid-glass bead).
+# regenerate resources/app-icon.icns and assets/icon.png (+ icon-dark.png for dark themes) from
+# scripts/make-icon.swift, which
+# draws the mark defined in sources/app/LogoMark.swift.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 TMP="$(mktemp -d)"
-swift scripts/make-icon.swift "$TMP/icon-1024.png"
-swift scripts/make-icon.swift "$TMP/bead.png" --bead-only
-sips -c 440 440 "$TMP/bead.png" --out "$TMP/bead-crop.png" >/dev/null
-sips -z 128 128 "$TMP/bead-crop.png" --out assets/icon.png >/dev/null
+# top-level code must live in main.swift when compiling more than one file
+cp scripts/make-icon.swift "$TMP/main.swift"
+swiftc -O "$TMP/main.swift" sources/app/LogoMark.swift -o "$TMP/make-icon"
+"$TMP/make-icon" "$TMP/icon-1024.png"
+"$TMP/make-icon" "$TMP/mark.png" --mark-only
+sips -z 128 128 "$TMP/mark.png" --out assets/icon.png >/dev/null
+"$TMP/make-icon" "$TMP/mark-light.png" --mark-only --light
+sips -z 128 128 "$TMP/mark-light.png" --out assets/icon-dark.png >/dev/null
 mkdir "$TMP/AppIcon.iconset"
 for s in 16 32 128 256 512; do
   sips -z $s $s "$TMP/icon-1024.png" --out "$TMP/AppIcon.iconset/icon_${s}x${s}.png" >/dev/null

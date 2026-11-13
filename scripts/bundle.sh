@@ -5,6 +5,9 @@
 #   scripts/bundle.sh             build for this mac
 #   scripts/bundle.sh --run       build, then (re)launch it
 #   scripts/bundle.sh --release   universal build, developer id signing, notarization -> build/fairy-cursor.zip
+#   scripts/bundle.sh --zip       universal build, ad-hoc signed, not notarized -> build/fairy-cursor.zip
+#                                 (for shipping before you have a developer id; people open it with
+#                                 system settings → privacy & security → open anyway)
 #
 # --release needs a "Developer ID Application" certificate in your keychain and notary
 # credentials saved once with:
@@ -27,6 +30,9 @@ if [ "$MODE" = "--release" ]; then
   xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1 \
     || { echo "no notary credentials named \"$NOTARY_PROFILE\" (see the top of this script)"; exit 1; }
 
+  swift build -c release --arch arm64 --arch x86_64 2>&1 | grep -E "error|Build complete" || true
+  BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/FairyCursor"
+elif [ "$MODE" = "--zip" ]; then
   swift build -c release --arch arm64 --arch x86_64 2>&1 | grep -E "error|Build complete" || true
   BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/FairyCursor"
 else
@@ -58,6 +64,15 @@ if [ "$MODE" = "--release" ]; then
   ditto -c -k --keepParent "$APP" "$ZIP"
   spctl --assess --type execute "$APP" && echo "gatekeeper: accepted"
   echo "release: $ZIP"
+  exit 0
+fi
+
+if [ "$MODE" = "--zip" ]; then
+  codesign --force --sign - --identifier com.rima.fairycursor "$APP"
+  codesign --verify --strict "$APP"
+  rm -f "$ZIP"
+  ditto -c -k --keepParent "$APP" "$ZIP"
+  echo "release (not notarized): $ZIP"
   exit 0
 fi
 

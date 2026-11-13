@@ -16,7 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let settings = AppSettings.shared
     private lazy var settingsWindow = SettingsWindowController(model: SettingsModel(
         summon: summoner.isEnabled, setSummon: { [weak self] in self?.summoner.isEnabled = $0 },
-        showWhenIdle: state.showWhenIdle, setShowWhenIdle: { [weak self] in self?.state.showWhenIdle = $0 },
         onNotesFolderChanged: { [weak self] in self?.notes.switchFolder(to: $0) }
     ))
 
@@ -296,19 +295,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Status item
 
-    /// The app's glass bead as an 18 pt template glyph: a translucent body, a faint rim and a small
-    /// cut-out highlight at the top left. Template, so the menu bar tints it for light/dark.
-    static func menuBarDot() -> NSImage {
-        let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            let bead = NSRect(x: 3.25, y: 3.25, width: 11.5, height: 11.5)
-            NSColor.black.withAlphaComponent(0.42).setFill()
-            NSBezierPath(ovalIn: bead).fill()
-            NSColor.black.withAlphaComponent(0.30).setStroke()
-            let rim = NSBezierPath(ovalIn: bead.insetBy(dx: 0.4, dy: 0.4))
-            rim.lineWidth = 0.6
-            rim.stroke()
-            NSGraphicsContext.current?.compositingOperation = .clear
-            NSBezierPath(ovalIn: NSRect(x: 5.7, y: 9.5, width: 3.6, height: 2.5)).fill()
+    /// The app's mark (`LogoMark`) as a menu-bar-height template glyph, so the menu bar tints it for
+    /// light and dark.
+    static func menuBarGlyph() -> NSImage {
+        // Full height, width hugging the mark: the status item adds its own spacing around it.
+        let mark = LogoMark.outline().boundingBoxOfPath
+        let height: CGFloat = 17
+        let width = (height * mark.width / mark.height).rounded(.up)
+        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
+            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
+            ctx.addPath(LogoMark.path(fitting: CGRect(x: 0, y: 0, width: width, height: height), yUp: true))
+            ctx.setFillColor(NSColor.black.cgColor)
+            ctx.fillPath()
             return true
         }
         image.isTemplate = true
@@ -317,9 +315,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let glyph = Self.menuBarGlyph()
+        // Hugs the mark with a hair of room: `variableLength` adds wide side margins.
+        statusItem = NSStatusBar.system.statusItem(withLength: glyph.size.width + 2)
         if let button = statusItem.button {
-            button.image = Self.menuBarDot()
+            button.image = glyph
+            button.imagePosition = .imageOnly
         }
         let menu = NSMenu()
         menu.delegate = self

@@ -20,11 +20,9 @@ struct FairyView: View {
         // No GlassEffectContainer: it renders the glass shapes itself and ignores the per-card
         // rotation, so each card carries its own standalone glass effect.
         ZStack(alignment: .topLeading) {
+            // Nothing held, nothing shown: the fairy only appears while carrying something.
             if !state.stack.isEmpty {
                 stack
-            } else if state.showWhenIdle {
-                orb
-                    .transition(.scale(scale: 0.4, anchor: .topLeading).combined(with: .opacity))
             }
         }
         .padding(FairyLayout.inset)
@@ -34,18 +32,6 @@ struct FairyView: View {
         .animation(.easeOut(duration: 0.18), value: state.hint)
         .opacity(state.hiddenForCapture ? 0 : 1)
         .animation(.easeInOut(duration: 0.15), value: state.hiddenForCapture)
-    }
-
-    // MARK: Idle orb — a tiny glass bead that trails the cursor.
-
-    private var orb: some View {
-        Circle()
-            .fill(Theme.plate)
-            .frame(width: FairyLayout.orbSize, height: FairyLayout.orbSize)
-            .glassEffect(.regular.tint(.white.opacity(0.28)), in: .circle)
-            .overlay(Circle().strokeBorder(Theme.hairline, lineWidth: 1))
-            .overlay(Circle().inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
-            .glassShadow(0.7)
     }
 
     // MARK: Stack — newest sheet on top, each tilted a little; the hint sits below the pile.

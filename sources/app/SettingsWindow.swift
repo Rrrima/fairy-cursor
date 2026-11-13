@@ -2,29 +2,24 @@ import AppKit
 import ServiceManagement
 import SwiftUI
 
-/// Everything the settings window can change. App-owned switches (the ⌥ summon, showing the
-/// fairy when empty, launch at login) come in as closures so the window stays a plain view.
+/// Everything the settings window can change. App-owned switches (the ⌥ summon, launch at
+/// login) come in as closures so the window stays a plain view.
 @MainActor
 final class SettingsModel: ObservableObject {
     let settings = AppSettings.shared
     @Published var summonEnabled: Bool { didSet { setSummon(summonEnabled) } }
-    @Published var showWhenIdle: Bool { didSet { setShowWhenIdle(showWhenIdle) } }
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @Published var accessibility = Permissions.accessibility
     @Published var screenRecording = Permissions.screenRecording
 
     private let setSummon: (Bool) -> Void
-    private let setShowWhenIdle: (Bool) -> Void
     /// The notes folder changed (the app moves its open notes over).
     let onNotesFolderChanged: (URL) -> Void
 
     init(summon: Bool, setSummon: @escaping (Bool) -> Void,
-         showWhenIdle: Bool, setShowWhenIdle: @escaping (Bool) -> Void,
          onNotesFolderChanged: @escaping (URL) -> Void) {
         self.summonEnabled = summon
-        self.showWhenIdle = showWhenIdle
         self.setSummon = setSummon
-        self.setShowWhenIdle = setShowWhenIdle
         self.onNotesFolderChanged = onNotesFolderChanged
     }
 
@@ -309,7 +304,6 @@ struct SettingsView: View {
             }
 
             section("General") {
-                ToggleRow(title: "Show the fairy when it’s empty", isOn: $model.showWhenIdle)
                 ToggleRow(title: "Launch at login", isOn: Binding(
                     get: { model.launchAtLogin },
                     set: { model.setLaunchAtLogin($0) }
