@@ -33,6 +33,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var watchdogTimer: Timer?
     private let debug = ProcessInfo.processInfo.environment["FAIRY_DEBUG"] == "1"
 
+    // Screen recording (⌘⇧6).
+    private let recordingInput = RecordingInput()
+    private var recorder: ScreenRecorder?
+    private var recordingFrame: RecordingFrame?
+    private var recordingState: RecordingState = .idle
+    private enum RecordingState { case idle, starting, recording, stopping }
+    private var isRecording: Bool { recordingState == .recording }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerBundledFonts()
         Permissions.requestMissing()
@@ -45,8 +53,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         setupStatusItem()
         SystemScreenshotTakeover.shared.applyAtLaunch()
+        CursorScale.restoreIfLeftEnlarged()
         startScreenshotMonitor()
         startCursorMonitor()
+        startRecordingInput()
 
         // Chromium/Electron apps expose web inputs only after an assistive client asks; ask now
         // and for every app launched later, so a double-click in a chat box is recognised at once.
@@ -72,6 +82,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        if recordingState != .idle { finishRecording(quitting: true) }
+        CursorScale.restore()
         SystemScreenshotTakeover.shared.restore()
         notes.flush()
         summoner.stop()
@@ -91,7 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.state.deliver(ids: ids, hint: ids.count == 1 ? "added to note" : "added \(ids.count) to note")
         }
         notes.restore()
-        summoner.isBlocked = { [weak self] in self?.state.hiddenForCapture ?? false }
+        // While recording, ⌥ is for zooming (⌥ + scroll), not for summoning a note.
+        summoner.isBlocked = { [weak self] in (self?.state.hiddenForCapture ?? false) || (self?.recordingState ?? .idle) != .idle }
         summoner.isOverOwnWindow = { [weak self] point in self?.notes.containsPoint(point) ?? false }
         summoner.onSummon = { [weak self] mouse, origin in
             self?.log("note from \(origin.kind.rawValue): \(origin.label)")
@@ -293,6 +306,115 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // MARK: - Screen recording
+
+    private func startRecordingInput() {
+        recordingInput.onToggle = { [weak self] in self?.toggleRecordingNow() }
+        recordingInput.onZoom = { [weak self] amount in self?.recorder?.zoom(by: amount) }
+        recordingInput.isRecording = { [weak self] in self?.isRecording ?? false }
+        if !recordingInput.start() {
+            log("recording shortcut unavailable — grant Accessibility and relaunch")
+        }
+    }
+
+    private func toggleRecordingNow() {
+        switch recordingState {
+        case .idle: beginRecording()
+        case .recording: finishRecording(quitting: false)
+        case .starting, .stopping: break
+        }
+    }
+
+    private func beginRecording() {
+        guard Permissions.screenRecording else {
+            Permissions.openScreenRecordingSettings()
+            return
+        }
+        // Record the display the cursor is on.
+        let mouse = CGEvent(source: nil)?.location ?? .zero
+        var displayID: CGDirectDisplayID = CGMainDisplayID()
+        var count: UInt32 = 0
+        CGGetDisplaysWithPoint(mouse, 1, &displayID, &count)
+
+        let folder = settings.screenshotsFolder
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = Self.recordingURL(in: folder)
+
+        recordingState = .starting
+        let frame = RecordingFrame(displayID: displayID)
+        let recorder = ScreenRecorder()
+        recorder.onStoppedUnexpectedly = { [weak self] error in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self?.log("recording stopped by the system: \(error)")
+                    self?.finishRecording(quitting: false)
+                }
+            }
+        }
+        self.recorder = recorder
+        self.recordingFrame = frame
+        frame.show(area: { [weak recorder] in recorder?.currentArea ?? .zero })
+        let windowID = frame.windowID
+        log("recording display \(displayID) → \(url.lastPathComponent)")
+
+        Task { @MainActor in
+            do {
+                try await recorder.start(displayID: displayID, excludingWindowIDs: [windowID], to: url)
+                guard self.recordingState == .starting else { return }
+                self.recordingState = .recording
+                CursorScale.enlarge()
+            } catch {
+                self.log("recording failed to start: \(error)")
+                self.recordingFrame?.close()
+                self.recordingFrame = nil
+                self.recorder = nil
+                self.recordingState = .idle
+            }
+        }
+    }
+
+    private func finishRecording(quitting: Bool) {
+        guard let recorder = recorder else { recordingState = .idle; return }
+        recordingState = .stopping
+        CursorScale.restore()
+        recordingFrame?.close()
+        recordingFrame = nil
+        let done = DispatchSemaphore(value: 0)
+        recorder.stop { [weak self] url in
+            MainActor.assumeIsolated {
+                self?.recorder = nil
+                self?.recordingState = .idle
+                if let url = url {
+                    self?.log("recording saved: \(url.path)")
+                    if !quitting { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                }
+            }
+            done.signal()
+        }
+        if quitting {
+            // Give the file a moment to be finalised before the process goes away.
+            let deadline = Date().addingTimeInterval(3)
+            while done.wait(timeout: .now()) == .timedOut, Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+            }
+        }
+    }
+
+    /// "Screen Recording 2026-11-12 at 22.45.01.mov", like macOS names its own.
+    private static func recordingURL(in folder: URL) -> URL {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        let stem = "Screen Recording \(formatter.string(from: Date()))"
+        var url = folder.appendingPathComponent("\(stem).mov")
+        var n = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = folder.appendingPathComponent("\(stem) \(n).mov")
+            n += 1
+        }
+        return url
+    }
+
     // MARK: - Status item
 
     /// The app's mark (`LogoMark`) as a menu-bar-height template glyph, so the menu bar tints it for
@@ -341,6 +463,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(NSMenuItem(title: kept ? "Let Go of Top Screenshot" : "Discard Top Screenshot", action: #selector(discard), keyEquivalent: ""))
             if n > 1 { menu.addItem(NSMenuItem(title: kept ? "Let Go of All" : "Discard All", action: #selector(discardAll), keyEquivalent: "")) }
         }
+        let recordTitle: String
+        switch recordingState {
+        case .idle: recordTitle = "Record Screen (\(RecordingInput.shortcutLabel))"
+        case .starting: recordTitle = "Starting Recording…"
+        case .recording: recordTitle = "Stop Recording (\(RecordingInput.shortcutLabel))"
+        case .stopping: recordTitle = "Saving Recording…"
+        }
+        let record = NSMenuItem(title: recordTitle, action: #selector(toggleRecording), keyEquivalent: "")
+        record.isEnabled = recordingState == .idle || recordingState == .recording
+        menu.addItem(record)
         if state.canRestore {
             menu.addItem(NSMenuItem(title: "Restore Last Screenshot", action: #selector(restoreLast), keyEquivalent: ""))
         }
@@ -366,6 +498,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func discard() { state.dissolve() }
     @objc private func discardAll() { state.discardAll() }
     @objc private func restoreLast() { state.restoreLast() }
+    @objc private func toggleRecording() { toggleRecordingNow() }
     @objc private func openScreenshotsFolder() { AppSettings.open(settings.screenshotsFolder) }
     @objc private func openSettings() { settingsWindow.show() }
     @objc private func openAccessibility() { Permissions.openAccessibilitySettings() }

@@ -49,6 +49,15 @@ after you rebuild, macos may forget these. turn them off and on again.
 
 dropped one by accident? menu bar → restore last screenshot. your notes are under menu bar → recent notes.
 
+## record your screen
+
+- `⌘ ⇧ 6` starts recording the screen your cursor is on. press it again to stop
+- while recording, hold `⌥` and scroll to zoom in and out. the video zooms with you and follows your cursor
+- the cursor gets bigger while you record, and goes back when you stop
+- the recording is saved next to your screenshots and shown in finder
+
+the blue outline shows what's being recorded; it isn't in the video. on a mac with a touch bar, `⌘ ⇧ 6` normally screenshots the touch bar; the fairy uses it for recording instead.
+
 ## settings
 
 menu bar → settings…
