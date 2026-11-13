@@ -138,6 +138,12 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         }
     }
 
+    /// Whether ⌥ is held: the area follows the cursor only then.
+    private var following = false
+    func setFollowing(_ on: Bool) {
+        queue.async { self.following = on }
+    }
+
     /// ⌥ + scroll: positive zooms in.
     func zoom(by amount: CGFloat) {
         queue.async { self.viewport?.zoom(by: amount) }
@@ -172,7 +178,10 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         let dt = now - lastTick
         lastTick = now
         guard var viewport = viewport else { return }
-        viewport.step(cursor: CGEvent(source: nil)?.location ?? CGPoint(x: viewport.display.midX, y: viewport.display.midY), dt: dt)
+        // The area moves only while ⌥ is held (see RecordingViewport).
+        let optionHeld = following
+        let cursor = CGEvent(source: nil)?.location ?? CGPoint(x: viewport.display.midX, y: viewport.display.midY)
+        viewport.step(cursor: cursor, following: optionHeld, dt: dt)
         self.viewport = viewport
         let area = viewport.area
         setArea(area)

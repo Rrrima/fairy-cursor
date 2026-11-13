@@ -52,7 +52,8 @@ dropped one by accident? menu bar → restore last screenshot. your notes are un
 ## record your screen
 
 - `⌘ ⇧ 6` starts recording the screen your cursor is on. press it again to stop
-- while recording, hold `⌥` and scroll to zoom in and out. the video zooms with you and follows your cursor
+- while recording, hold `⌥` and scroll to zoom in and out
+- hold `⌥` and move the cursor to move the zoomed view with it. let go and the view stays put
 - the cursor gets bigger while you record, and goes back when you stop
 - the recording is saved next to your screenshots and shown in finder
 

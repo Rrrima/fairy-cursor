@@ -15,6 +15,9 @@ final class RecordingInput {
     var onZoom: (CGFloat) -> Void = { _ in }
     /// Whether ⌥ + scroll should be taken (only while recording).
     var isRecording: () -> Bool = { false }
+    /// ⌥ went down or up (the recorded area follows the cursor only while it's held).
+    var onOptionChanged: (Bool) -> Void = { _ in }
+    private var optionDown = false
 
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
@@ -26,6 +29,7 @@ final class RecordingInput {
     func start() -> Bool {
         guard tap == nil else { return true }
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue) | CGEventMask(1 << CGEventType.scrollWheel.rawValue)
+            | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
                                           eventsOfInterest: mask, callback: recordingInputCallback, userInfo: refcon) else {
@@ -59,6 +63,13 @@ final class RecordingInput {
                   !flags.contains(.maskControl), !flags.contains(.maskAlternate) else { return true }
             if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onToggle() }
             return false
+        case .flagsChanged:
+            let down = event.flags.contains(.maskAlternate)
+            if down != optionDown {
+                optionDown = down
+                onOptionChanged(down)
+            }
+            return true
         case .scrollWheel:
             guard isRecording(), event.flags.contains(.maskAlternate) else { return true }
             onZoom(Self.zoomAmount(for: event))

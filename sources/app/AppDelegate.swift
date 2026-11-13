@@ -312,6 +312,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         recordingInput.onToggle = { [weak self] in self?.toggleRecordingNow() }
         recordingInput.onZoom = { [weak self] amount in self?.recorder?.zoom(by: amount) }
         recordingInput.isRecording = { [weak self] in self?.isRecording ?? false }
+        recordingInput.onOptionChanged = { [weak self] down in
+            guard let self = self, let recorder = self.recorder else { return }
+            recorder.setFollowing(down)
+            self.log("⌥ \(down ? "down" : "up") — recorded area \(recorder.currentArea.integral)")
+        }
         if !recordingInput.start() {
             log("recording shortcut unavailable — grant Accessibility and relaunch")
         }

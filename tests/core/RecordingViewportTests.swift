@@ -5,8 +5,8 @@ import XCTest
 final class RecordingViewportTests: XCTestCase {
     private let display = CGRect(x: 0, y: 0, width: 1600, height: 1000)
 
-    private func settle(_ v: inout RecordingViewport, cursor: CGPoint, seconds: Double = 2) {
-        for _ in 0..<Int(seconds * 60) { v.step(cursor: cursor, dt: 1.0 / 60) }
+    private func settle(_ v: inout RecordingViewport, cursor: CGPoint, following: Bool = true, seconds: Double = 2) {
+        for _ in 0..<Int(seconds * 60) { v.step(cursor: cursor, following: following, dt: 1.0 / 60) }
     }
 
     func testStartsShowingTheWholeDisplay() {
@@ -18,7 +18,7 @@ final class RecordingViewportTests: XCTestCase {
         var v = RecordingViewport(display: display)
         v.zoom(by: log(2))
         XCTAssertEqual(v.targetZoom, 2, accuracy: 0.0001)
-        v.step(cursor: CGPoint(x: 800, y: 500), dt: 1.0 / 60)
+        v.step(cursor: CGPoint(x: 800, y: 500), following: false, dt: 1.0 / 60)
         XCTAssertGreaterThan(v.zoom, 1)
         XCTAssertLessThan(v.zoom, 2, "one frame is not the whole way")
         settle(&v, cursor: CGPoint(x: 800, y: 500))
@@ -46,16 +46,43 @@ final class RecordingViewportTests: XCTestCase {
         XCTAssertLessThanOrEqual(v.area.maxY, display.maxY + 0.001)
     }
 
-    func testAreaFollowsTheCursorWhenItNearsTheEdge() {
+    func testAreaStaysPutWithoutOption() {
         var v = RecordingViewport(display: display)
         v.zoom(by: log(2))
         settle(&v, cursor: CGPoint(x: 800, y: 500))
         let before = v.area
-        settle(&v, cursor: CGPoint(x: 820, y: 510))
-        XCTAssertEqual(v.area.midX, before.midX, accuracy: 0.5, "small moves in the middle don't move the area")
-        settle(&v, cursor: CGPoint(x: 1300, y: 500))
-        XCTAssertTrue(v.area.contains(CGPoint(x: 1300, y: 500)))
-        XCTAssertGreaterThan(v.area.midX, before.midX)
+        settle(&v, cursor: CGPoint(x: 1500, y: 900), following: false)
+        XCTAssertEqual(v.area.midX, before.midX, accuracy: 0.001, "letting go of ⌥ pins the area")
+        XCTAssertEqual(v.area.midY, before.midY, accuracy: 0.001)
+    }
+
+    func testAreaCentresOnTheCursorWhileOptionIsHeld() {
+        var v = RecordingViewport(display: display)
+        v.zoom(by: log(2))
+        settle(&v, cursor: CGPoint(x: 800, y: 500))
+        settle(&v, cursor: CGPoint(x: 700, y: 450))
+        XCTAssertEqual(v.area.midX, 700, accuracy: 1)
+        XCTAssertEqual(v.area.midY, 450, accuracy: 1)
+    }
+
+    func testLettingGoOfOptionStopsTheAreaAtOnce() {
+        var v = RecordingViewport(display: display)
+        v.zoom(by: log(2))
+        settle(&v, cursor: CGPoint(x: 800, y: 500))
+        for _ in 0..<6 { v.step(cursor: CGPoint(x: 1300, y: 800), following: true, dt: 1.0 / 60) }
+        let atRelease = v.area
+        XCTAssertGreaterThan(atRelease.midX, 800, "it started moving")
+        settle(&v, cursor: CGPoint(x: 1300, y: 800), following: false)
+        XCTAssertEqual(v.area.midX, atRelease.midX, accuracy: 0.001, "no glide after ⌥ is released")
+        XCTAssertEqual(v.area.midY, atRelease.midY, accuracy: 0.001)
+    }
+
+    func testZoomStillEasesWhilePinned() {
+        var v = RecordingViewport(display: display)
+        v.zoom(by: log(2))
+        settle(&v, cursor: CGPoint(x: 400, y: 300), following: false)
+        XCTAssertEqual(v.zoom, 2, accuracy: 0.001)
+        XCTAssertEqual(v.area.midX, 800, accuracy: 1, "zooms around where the area already is")
     }
 
     func testDisplayWithOffsetOrigin() {
