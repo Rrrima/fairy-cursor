@@ -5,13 +5,9 @@ import AppKit
 /// the app underneath never sees an ⌥-click.
 @MainActor
 final class NoteSummoner {
-    var isEnabled: Bool = UserDefaults.standard.object(forKey: "noteSummonEnabled") as? Bool ?? true {
-        didSet {
-            UserDefaults.standard.set(isEnabled, forKey: "noteSummonEnabled")
-            if !isEnabled { endHold() }
-        }
-    }
-    /// True while something else owns the screen (the system screenshot UI).
+    /// The Settings switch ("Hold ⌥ on empty space for a note").
+    var isEnabled: Bool { NotesSettings.shared.summonEnabled }
+    /// True while something else owns the screen (the screenshot UI, a recording).
     var isBlocked: () -> Bool = { false }
     /// Is this point (AppKit coordinates) over one of our notes?
     var isOverOwnWindow: (CGPoint) -> Bool = { _ in false }
@@ -101,7 +97,7 @@ final class NoteSummoner {
     }
 
     private func track() {
-        guard !spent, !isBlocked() else { hidePill(); return }
+        guard !spent, isEnabled, !isBlocked() else { hidePill(); return }
         let mouse = NSEvent.mouseLocation
         let now = CACurrentMediaTime()
         if now - lastCheck > 0.12 {

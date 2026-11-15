@@ -1,32 +1,25 @@
 import AppKit
+import FairyKit
 import ServiceManagement
 import SwiftUI
 
-/// Everything the settings window can change. App-owned switches (the ⌥ summon, launch at
-/// login) come in as closures so the window stays a plain view.
+/// Everything the settings window shows that isn't a stored setting: which capabilities are on,
+/// launch at login, and the permissions.
 @MainActor
 final class SettingsModel: ObservableObject {
     let settings = AppSettings.shared
-    @Published var summonEnabled: Bool { didSet { setSummon(summonEnabled) } }
+    let capabilities: CapabilityRegistry
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
-    @Published var accessibility = Permissions.accessibility
-    @Published var screenRecording = Permissions.screenRecording
+    @Published var granted: Set<Permission> = []
 
-    private let setSummon: (Bool) -> Void
-    /// The notes folder changed (the app moves its open notes over).
-    let onNotesFolderChanged: (URL) -> Void
-
-    init(summon: Bool, setSummon: @escaping (Bool) -> Void,
-         onNotesFolderChanged: @escaping (URL) -> Void) {
-        self.summonEnabled = summon
-        self.setSummon = setSummon
-        self.onNotesFolderChanged = onNotesFolderChanged
+    init(capabilities: CapabilityRegistry) {
+        self.capabilities = capabilities
+        refresh()
     }
 
     func refresh() {
         launchAtLogin = SMAppService.mainApp.status == .enabled
-        accessibility = Permissions.accessibility
-        screenRecording = Permissions.screenRecording
+        granted = Set(Permission.allCases.filter(\.isGranted))
     }
 
     func setLaunchAtLogin(_ on: Bool) {
@@ -38,15 +31,9 @@ final class SettingsModel: ObservableObject {
         launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
-    func chooseNotesFolder() {
-        guard let url = AppSettings.chooseFolder(startingAt: settings.notesFolder, prompt: "Use for notes") else { return }
-        settings.notesFolder = url
-        onNotesFolderChanged(url)
-    }
-
-    func chooseScreenshotsFolder() {
-        guard let url = AppSettings.chooseFolder(startingAt: settings.screenshotsFolder, prompt: "Use for screenshots") else { return }
-        settings.screenshotsFolder = url
+    func chooseCapturesFolder() {
+        guard let url = Folders.choose(startingAt: settings.capturesFolder, prompt: "Use for captures") else { return }
+        settings.capturesFolder = url
     }
 }
 
@@ -63,7 +50,7 @@ final class SettingsWindowController {
         model.refresh()
         if window == nil {
             let window = SettingsPanel()
-            let hosting = NSHostingView(rootView: SettingsView(model: model, settings: model.settings, close: { [weak window] in
+            let hosting = NSHostingView(rootView: SettingsView(model: model, settings: model.settings, capabilities: model.capabilities, close: { [weak window] in
                 window?.orderOut(nil)
             }))
             hosting.wantsLayer = true
@@ -215,17 +202,12 @@ final class ResizableFrameView: NSView {
 
 // MARK: - View
 
-/// Quiet ink, one soft blue for switches that are on; sections are separated by space, not lines.
-private enum Ink {
-    static let primary = Theme.text
-    static let secondary = Theme.muted
-    static let faint = Theme.muted.opacity(0.7)
-    static let accent = Color(hue: 212 / 360, saturation: 0.60, brightness: 0.80)
-}
+private typealias Ink = SettingsInk
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var settings: AppSettings
+    @ObservedObject var capabilities: CapabilityRegistry
     let close: () -> Void
 
     /// Room around the card for its shadow (the window itself is transparent).
@@ -277,33 +259,32 @@ struct SettingsView: View {
 
     private var sections: some View {
         VStack(alignment: .leading, spacing: 26) {
-            section("Screenshots") {
-                ToggleRow(
-                    title: "Keep every screenshot",
-                    detail: settings.keepScreenshots
-                        ? "Each one is saved as you take it. Shaking only lets go of it."
-                        : "Nothing is saved unless you drop it somewhere. Shaking throws it away.",
-                    isOn: $settings.keepScreenshots
-                )
-                FolderRow(
-                    title: "Save to",
-                    folder: settings.screenshotsFolder,
-                    choose: model.chooseScreenshotsFolder
-                )
-                .opacity(settings.keepScreenshots ? 1 : 0.45)
+            // What the fairy can do: each one switches on and off on its own.
+            section("Capabilities") {
+                ForEach(capabilities.all.indices, id: \.self) { i in
+                    let manifest = CapabilityRegistry.manifest(of: capabilities.all[i])
+                    ToggleRow(title: manifest.name, detail: manifest.summary, isOn: Binding(
+                        get: { capabilities.isEnabled(manifest.id) },
+                        set: { capabilities.setEnabled(manifest.id, $0); model.refresh() }
+                    ))
+                }
             }
 
-            section("Notes") {
-                FolderRow(
-                    title: "Notes folder",
-                    folder: settings.notesFolder,
-                    detail: "Each note is a Markdown file you can open anywhere.",
-                    choose: model.chooseNotesFolder
-                )
-                ToggleRow(title: "Hold ⌥ on empty space for a note", isOn: $model.summonEnabled)
+            ForEach(capabilities.all.indices, id: \.self) { i in
+                let capability = capabilities.all[i]
+                let manifest = CapabilityRegistry.manifest(of: capability)
+                if capabilities.isEnabled(manifest.id), let rows = capability.settingsView() {
+                    section(manifest.name) { rows }
+                }
             }
 
             section("General") {
+                FolderRow(
+                    title: "Captures folder",
+                    folder: settings.capturesFolder,
+                    detail: "Kept screenshots and screen recordings are saved here.",
+                    choose: model.chooseCapturesFolder
+                )
                 ToggleRow(title: "Launch at login", isOn: Binding(
                     get: { model.launchAtLogin },
                     set: { model.setLaunchAtLogin($0) }
@@ -311,8 +292,9 @@ struct SettingsView: View {
             }
 
             section("Permissions") {
-                PermissionRow(title: "Accessibility", granted: model.accessibility, open: Permissions.openAccessibilitySettings)
-                PermissionRow(title: "Screen recording", granted: model.screenRecording, open: Permissions.openScreenRecordingSettings)
+                ForEach(Permission.allCases.filter { capabilities.neededPermissions.contains($0) }, id: \.self) { permission in
+                    PermissionRow(title: permission.title, granted: model.granted.contains(permission), open: permission.openSettings)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -341,60 +323,6 @@ struct SettingsView: View {
     }
 }
 
-private struct ToggleRow: View {
-    let title: String
-    var detail: String? = nil
-    @Binding var isOn: Bool
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(Theme.font(13.5, weight: .medium)).foregroundStyle(Ink.primary)
-                if let detail = detail {
-                    Text(detail)
-                        .font(Theme.font(12))
-                        .foregroundStyle(Ink.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .animation(.easeOut(duration: 0.2), value: detail)
-                }
-            }
-            Spacer(minLength: 8)
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .tint(Ink.accent)
-        }
-    }
-}
-
-private struct FolderRow: View {
-    let title: String
-    let folder: URL
-    var detail: String? = nil
-    let choose: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                Text(title).font(Theme.font(13.5, weight: .medium)).foregroundStyle(Ink.primary)
-                Spacer(minLength: 8)
-                QuietButton(title: "Change…", action: choose)
-                QuietButton(title: "Open", action: { AppSettings.open(folder) })
-            }
-            Text(AppSettings.displayPath(folder))
-                .font(Theme.font(12))
-                .foregroundStyle(Ink.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(folder.path)
-            if let detail = detail {
-                Text(detail).font(Theme.font(12)).foregroundStyle(Ink.faint)
-            }
-        }
-    }
-}
-
 private struct PermissionRow: View {
     let title: String
     let granted: Bool
@@ -410,28 +338,6 @@ private struct PermissionRow: View {
                 QuietButton(title: "Allow…", action: open)
             }
         }
-    }
-}
-
-/// A small glass pill: quiet at rest, it lifts and denses a little on hover.
-private struct QuietButton: View {
-    let title: String
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(Theme.font(12, weight: .medium))
-                .foregroundStyle(hovering ? Ink.primary : Ink.secondary)
-                .padding(.horizontal, 11)
-                .padding(.vertical, 4)
-                .glassEffect(.regular.tint(.white.opacity(hovering ? 0.45 : 0.25)).interactive(), in: Capsule())
-                .offset(y: hovering ? -1 : 0)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.15), value: hovering)
     }
 }
 

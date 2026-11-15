@@ -1,4 +1,5 @@
 import FairyCore
+import FairyKit
 import SwiftUI
 
 /// Geometry shared with the panel/follower.

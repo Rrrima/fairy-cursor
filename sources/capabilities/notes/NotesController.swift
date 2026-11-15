@@ -1,13 +1,13 @@
 import AppKit
+import FairyKit
 import SwiftUI
 
 /// Owns the note panels: creating, restoring, putting away, deleting, and the menu section.
 @MainActor
 final class NotesController: NSObject {
-    let store = NoteStore(folder: AppSettings.shared.notesFolder)
+    let store = NoteStore(folder: NotesSettings.shared.folder)
     private var open: [UUID: (panel: NotePanel, model: NoteModel)] = [:]
     private var observers: [UUID: [NSObjectProtocol]] = [:]
-    /// Notes listed directly in the menu; the rest go in a submenu.
     /// What the fairy is carrying, top card first (empty when its hands are free).
     var carriedScreenshots: () -> [HeldScreenshot] = { [] }
     /// These carried screenshots went into a note; the fairy should let go of (only) them.
@@ -22,14 +22,21 @@ final class NotesController: NSObject {
 
     func flush() { store.flush() }
 
+    /// Take every note off screen but remember which were up, so they come back next time
+    /// (the capability is being switched off, or the app is quitting).
+    func hideAll() {
+        for id in Array(open.keys) {
+            store.update(id) { $0.isOpen = true }
+            closePanel(id)
+        }
+        store.flush()
+    }
+
     /// The notes folder changed: put this folder's notes away (they stay where they are on disk)
     /// and bring up the ones that were open from the new folder.
     func switchFolder(to folder: URL) {
         guard folder != store.folder else { return }
-        for id in Array(open.keys) {
-            store.update(id) { $0.isOpen = true }   // remember it was up, for coming back
-            closePanel(id)
-        }
+        hideAll()
         store.switchFolder(to: folder)
         restore()
     }
@@ -241,6 +248,6 @@ final class NotesController: NSObject {
     }
 
     @objc private func openFolder() {
-        AppSettings.open(store.folder)
+        Folders.open(store.folder)
     }
 }
