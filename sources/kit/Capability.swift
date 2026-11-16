@@ -85,7 +85,8 @@ public protocol FairyHost: AnyObject {
 
     // MARK: The screen
 
-    /// The system screenshot UI is up: the fairy steps out of the way and cursor movement is not a shake.
+    /// Something else has the pointer for a while (the system screenshot UI, a pen drawing on
+    /// screen): the fairy steps out of the way and cursor movement is not a shake.
     func setCaptureUIVisible(_ visible: Bool, owner: String)
     /// This capability has the screen to itself for a while (a recording): other capabilities'
     /// gestures (holding ⌥ for a note) stand down until it's released.

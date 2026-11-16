@@ -49,6 +49,13 @@ enum CursorScale {
         UserDefaults.standard.removeObject(forKey: savedKey)
     }
 
+    /// How many times bigger than the user's own size the cursor is right now (1 when not enlarged).
+    static var enlargement: Float {
+        guard let original = UserDefaults.standard.object(forKey: savedKey) as? Float, original > 0,
+              let now = current else { return 1 }
+        return now / original
+    }
+
     /// At launch: a previous run enlarged the cursor and never got to put it back.
     static func restoreIfLeftEnlarged() { restore() }
 }

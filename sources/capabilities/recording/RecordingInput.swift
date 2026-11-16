@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import FairyCore
 
 /// The keyboard and wheel input that drives screen recording, taken before other apps see it:
 ///   - ⌘⇧6 starts or stops a recording (macOS assigns it to "screenshot of the Touch Bar", which
@@ -17,6 +18,8 @@ final class RecordingInput {
     var isRecording: () -> Bool = { false }
     /// ⌥ went down or up (the recorded area follows the cursor only while it's held).
     var onOptionChanged: (Bool) -> Void = { _ in }
+    /// A pen key while recording. Returns whether it was used; unused keys go on to the app.
+    var onInkKey: (InkKey) -> Bool = { _ in false }
     private var optionDown = false
 
     private var tap: CFMachPort?
@@ -24,6 +27,10 @@ final class RecordingInput {
 
     static let toggleKeyCode: Int64 = 22   // the "6" key
     static let shortcutLabel = "⌘⇧6"
+    static let penKeyCode: Int64 = 26      // "7"
+    static let highlighterKeyCode: Int64 = 28   // "8"
+    static let penLabel = "⌘⇧7"
+    static let highlighterLabel = "⌘⇧8"
 
     @discardableResult
     func start() -> Bool {
@@ -58,11 +65,27 @@ final class RecordingInput {
             return true
         case .keyDown:
             let flags = event.flags
-            guard event.getIntegerValueField(.keyboardEventKeycode) == Self.toggleKeyCode,
-                  flags.contains(.maskCommand), flags.contains(.maskShift),
-                  !flags.contains(.maskControl), !flags.contains(.maskAlternate) else { return true }
-            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 { onToggle() }
-            return false
+            let code = event.getIntegerValueField(.keyboardEventKeycode)
+            let repeated = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            let command = flags.contains(.maskCommand), shift = flags.contains(.maskShift)
+            let otherModifiers = flags.contains(.maskControl) || flags.contains(.maskAlternate)
+            if command, shift, !otherModifiers, code == Self.toggleKeyCode {
+                if !repeated { onToggle() }
+                return false
+            }
+            guard isRecording(), !otherModifiers else { return true }
+            let key: InkKey?
+            switch (code, command, shift) {
+            case (Self.penKeyCode, true, true): key = .pen
+            case (Self.highlighterKeyCode, true, true): key = .highlighter
+            case (6, true, false): key = .undo      // ⌘Z
+            case (53, false, false): key = .done    // esc
+            case (51, false, false), (117, false, false): key = .clear   // ⌫, ⌦
+            default: key = nil
+            }
+            guard let key = key else { return true }
+            if repeated { return key == .pen || key == .highlighter ? false : !onInkKey(key) }
+            return !onInkKey(key)
         case .flagsChanged:
             let down = event.flags.contains(.maskAlternate)
             if down != optionDown {
