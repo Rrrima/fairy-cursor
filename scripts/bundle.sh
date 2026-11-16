@@ -68,10 +68,19 @@ if [ "$MODE" = "--release" ]; then
 fi
 
 if [ "$MODE" = "--zip" ]; then
-  codesign --force --sign - --identifier com.rima.fairycursor "$APP"
-  codesign --verify --strict "$APP"
+  # sign a copy: re-signing the app you run locally would drop its accessibility and screen
+  # recording grants, and the fairy on this mac would stop working
+  STAGE=$(mktemp -d)
+  ditto "$APP" "$STAGE/Fairy Cursor.app"
+  codesign --force --sign - --identifier com.rima.fairycursor "$STAGE/Fairy Cursor.app"
+  codesign --verify --strict "$STAGE/Fairy Cursor.app"
   rm -f "$ZIP"
-  ditto -c -k --keepParent "$APP" "$ZIP"
+  ditto -c -k --keepParent "$STAGE/Fairy Cursor.app" "$ZIP"
+  rm -rf "$STAGE"
+  # and keep the local copy on the stable local identity (see below)
+  if security find-certificate -c "Fairy Cursor Local Signing" >/dev/null 2>&1; then
+    codesign --force --sign "Fairy Cursor Local Signing" --identifier com.rima.fairycursor "$APP" >/dev/null 2>&1
+  fi
   echo "release (not notarized): $ZIP"
   exit 0
 fi
