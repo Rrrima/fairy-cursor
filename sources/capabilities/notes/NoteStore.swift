@@ -79,7 +79,7 @@ struct Note: Codable, Identifiable, Equatable {
 }
 
 
-/// Notes as plain Markdown files in a folder the user picks (`AppSettings.notesFolder`), so they
+/// Notes as plain Markdown files in a folder the user picks (`NotesSettings.folder`), so they
 /// open in any editor and sync like any other file. Each file starts with a short front matter
 /// block (id, when, and where it was written); where the note's window sits on screen is app
 /// state, kept in Application Support so the files stay clean.

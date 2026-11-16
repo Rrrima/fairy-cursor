@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import SwiftUI
 
 /// What you see while recording, and never in the video: a soft blue outline around the area

@@ -14,14 +14,37 @@ let package = Package(
     platforms: [.macOS("26.0")],
     dependencies: [ausm],
     targets: [
-        // pure decision logic (shake detection, the held pile, drop and paste policies):
-        // no appkit, no live accessibility or event taps, fully unit-tested.
+        // pure decision logic (shake detection, the held pile, drop and paste policies, the
+        // recording viewport): no appkit, no live accessibility or event taps, fully unit-tested.
         .target(name: "FairyCore", path: "sources/core"),
+        // what a capability is written against: the Capability protocol, the FairyHost it talks
+        // to, and the shared look (theme, settings rows). capabilities import only this.
+        .target(name: "FairyKit", path: "sources/kit"),
+        // the capabilities. each is its own module, so none can reach into another.
+        .target(
+            name: "FairyScreenshots",
+            dependencies: ["FairyKit", "FairyCore", .product(name: "ScreenshotMonitorKit", package: "AUSM")],
+            path: "sources/capabilities/screenshots"
+        ),
+        .target(
+            name: "FairyNotes",
+            dependencies: ["FairyKit", "FairyCore", .product(name: "CursorMonitorKit", package: "AUSM")],
+            path: "sources/capabilities/notes"
+        ),
+        .target(
+            name: "FairyRecording",
+            dependencies: ["FairyKit", "FairyCore"],
+            path: "sources/capabilities/recording"
+        ),
+        // the host: the fairy itself, the menu, settings, and the list of capabilities.
         .executableTarget(
             name: "FairyCursor",
             dependencies: [
                 "FairyCore",
-                .product(name: "ScreenshotMonitorKit", package: "AUSM"),
+                "FairyKit",
+                "FairyScreenshots",
+                "FairyNotes",
+                "FairyRecording",
                 .product(name: "CursorMonitorKit", package: "AUSM"),
             ],
             path: "sources/app"

@@ -2,10 +2,11 @@ import AppKit
 import ApplicationServices
 import CursorMonitorKit
 import FairyCore
+import FairyKit
 
 /// Saves the held screenshot into the Finder folder (or the Desktop) the user double-clicked.
 enum FinderTarget {
-    static let finderBundleID = "com.apple.finder"
+    static let finderBundleID = Finder.bundleID
 
     /// Is a double-click on this Finder element a "put it here" gesture? (The empty background
     /// of a folder view or the desktop — not an item, not window chrome; see `FinderDropPolicy`.)
@@ -59,15 +60,5 @@ enum FinderTarget {
         }
     }
 
-    static func runAppleScript(_ source: String) -> String? {
-        var error: NSDictionary?
-        guard let script = NSAppleScript(source: source) else { return nil }
-        let result = script.executeAndReturnError(&error)
-        if let error = error {
-            NSLog("[FairyCursor] AppleScript error: \(error)")
-            return nil
-        }
-        let value = result.stringValue
-        return (value?.isEmpty ?? true) ? nil : value
-    }
+    static func runAppleScript(_ source: String) -> String? { Finder.runAppleScript(source) }
 }

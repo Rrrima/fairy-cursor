@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import SwiftUI
 
 /// Plain-text editor that styles Markdown as you type (markers stay visible, dimmed), the way

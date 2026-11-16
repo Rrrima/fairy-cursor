@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import ApplicationServices
 import CursorMonitorKit
 import FairyCore
@@ -21,7 +22,7 @@ enum NoteContext {
             // assistive client asks (Acrobat, some Electron apps). Ask it for next time and allow
             // the note meanwhile; a page you can't read is more likely margin than a control.
             if let window = windowAtPoint(point, excludingPIDs: [getpid()]) {
-                PasteTarget.enableWebAccessibilityIfNeeded(pid: window.pid)
+                WebAccessibility.enableWebAccessibilityIfNeeded(pid: window.pid)
             }
             return true
         }
@@ -29,7 +30,7 @@ enum NoteContext {
         AXUIElementGetPid(element, &pid)
         if pid == getpid() { return previous }
         if hit.isEditableText { return false }
-        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == FinderTarget.finderBundleID {
+        if NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == Finder.bundleID {
             // Window background counts as empty here (a note is harmless), unlike for saving.
             return FinderDropPolicy.isDropSpot(role: hit.role) || hit.role == "AXWindow"
         }
@@ -52,7 +53,7 @@ enum NoteContext {
             // Unreadable app (e.g. Acrobat): still name the window's owner rather than "Desktop".
             guard let window = windowAtPoint(point, excludingPIDs: [getpid()]) else { return .desktop }
             let app = NSRunningApplication(processIdentifier: window.pid)
-            if app?.bundleIdentifier == FinderTarget.finderBundleID, window.title.isEmpty { return .desktop }
+            if app?.bundleIdentifier == Finder.bundleID, window.title.isEmpty { return .desktop }
             return NoteOrigin(kind: .app, appName: app?.localizedName ?? window.ownerName,
                               bundleID: app?.bundleIdentifier ?? window.bundleId,
                               windowTitle: window.title.isEmpty ? nil : window.title)
@@ -63,7 +64,7 @@ enum NoteContext {
         let window = axWindow(of: element)
         // Finder's desktop is either outside any window or in an untitled full-screen one; real
         // Finder windows are always titled with their folder.
-        if app?.bundleIdentifier == FinderTarget.finderBundleID,
+        if app?.bundleIdentifier == Finder.bundleID,
            window.flatMap({ axStringAttribute($0, kAXTitleAttribute) })?.isEmpty ?? true { return .desktop }
         return origin(element: element, window: window, app: app)
     }
@@ -76,7 +77,7 @@ enum NoteContext {
         var windowRef: AnyObject?
         let window: AXUIElement? = AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &windowRef) == .success
             ? (windowRef as! AXUIElement) : nil
-        if app.bundleIdentifier == FinderTarget.finderBundleID, window == nil { return .desktop }
+        if app.bundleIdentifier == Finder.bundleID, window == nil { return .desktop }
         return origin(element: nil, window: window, app: app)
     }
 
@@ -132,7 +133,7 @@ enum NoteContext {
         } else {
             return nil
         }
-        guard let url = FinderTarget.runAppleScript(script), url.hasPrefix("http") || url.hasPrefix("file") else { return nil }
+        guard let url = Finder.runAppleScript(script), url.hasPrefix("http") || url.hasPrefix("file") else { return nil }
         return url
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import ApplicationServices
 import CursorMonitorKit
 import FairyCore
@@ -184,11 +185,11 @@ final class DropRouter {
     /// Chromium/Electron apps take ~2 s to expose their web inputs after the switch is flipped, so
     /// the hover path calls this ahead of any double-click.
     func prepare(pid: pid_t) {
-        if isChromiumLike(pid: pid) { PasteTarget.enableWebAccessibilityIfNeeded(pid: pid) }
+        if isChromiumLike(pid: pid) { WebAccessibility.enableWebAccessibilityIfNeeded(pid: pid) }
     }
 
     private func isChromiumLike(pid: pid_t) -> Bool {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return false }
-        return PasteTarget.isChromiumLike(app)
+        return WebAccessibility.isChromiumLike(app)
     }
 }

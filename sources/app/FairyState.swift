@@ -1,40 +1,7 @@
 import AppKit
 import FairyCore
+import FairyKit
 import SwiftUI
-
-/// One screenshot the fairy is carrying.
-struct HeldScreenshot: Identifiable {
-    let id = UUID()
-    let image: CGImage
-    let scale: CGFloat
-    let capturedAt: Date
-    let nsImage: NSImage
-    /// Small random tilt so stacked cards read as separate sheets.
-    let tilt: Double
-
-    init(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), tilt: Double = 0) {
-        self.image = image
-        self.scale = scale
-        self.capturedAt = capturedAt
-        self.tilt = tilt
-        self.nsImage = NSImage(cgImage: image, size: NSSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale))
-    }
-
-    var pointSize: CGSize { CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale) }
-
-    /// PNG with the display's DPI embedded so Preview/Finder show it at the right size.
-    func pngData() -> Data? {
-        let rep = NSBitmapImageRep(cgImage: image)
-        rep.size = pointSize
-        return rep.representation(using: .png, properties: [:])
-    }
-
-    func tiffData() -> Data? {
-        let rep = NSBitmapImageRep(cgImage: image)
-        rep.size = pointSize
-        return rep.tiffRepresentation
-    }
-}
 
 @MainActor
 final class FairyState: ObservableObject {
@@ -71,7 +38,7 @@ final class FairyState: ObservableObject {
 
     /// `kept`: the screenshot was already saved, so shaking only lets go of it.
     func hold(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false) {
-        pile.push(makeCard(image: image, scale: scale, capturedAt: capturedAt))
+        pile.push(makeCard(image: image, scale: scale, capturedAt: capturedAt, kept: kept))
         let count = pile.active.count
         let verb = kept ? "saved · shake to let go" : "shake to discard"
         flashHint(count > 1 ? "\(count) screenshots · \(verb)" : verb, for: 2.4)
@@ -84,10 +51,10 @@ final class FairyState: ObservableObject {
         schedulePrune()
     }
 
-    private func makeCard(image: CGImage, scale: CGFloat, capturedAt: Date) -> HeldScreenshot {
+    private func makeCard(image: CGImage, scale: CGFloat, capturedAt: Date, kept: Bool = false) -> HeldScreenshot {
         // Alternate the tilt direction so each new sheet peeks out from the previous one.
         let sign: Double = pile.cards.count % 2 == 0 ? 1 : -1
-        return HeldScreenshot(image: image, scale: scale, capturedAt: capturedAt, tilt: sign * Double.random(in: 8...15))
+        return HeldScreenshot(image: image, scale: scale, capturedAt: capturedAt, kept: kept, tilt: sign * Double.random(in: 8...15))
     }
 
     /// Shake off the top card.

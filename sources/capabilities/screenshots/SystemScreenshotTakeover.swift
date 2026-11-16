@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import Foundation
 
 /// Makes the fairy the only visible result of a screenshot: no floating thumbnail in the corner
@@ -10,33 +11,16 @@ final class SystemScreenshotTakeover {
 
     private let domain = "com.apple.screencapture" as CFString
     private let defaults = UserDefaults.standard
-    private let savedKey = "takeover.saved"          // marker: originals captured
-    private let originalLocationKey = "takeover.originalLocation"
+    private let savedKey = SystemScreenshotLocation.savedKey          // marker: originals captured
+    private let originalLocationKey = SystemScreenshotLocation.originalLocationKey
     private let originalThumbnailKey = "takeover.originalShowThumbnail"
 
-    let capturesFolder: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return base.appendingPathComponent("Fairy Cursor/Captures", isDirectory: true)
-    }()
+    let capturesFolder = SystemScreenshotLocation.privateFolder
 
-    /// Where macOS saved screenshots before the fairy took over (the Desktop unless the user had
-    /// changed it). The default home for kept screenshots.
-    var originalScreenshotFolder: URL {
-        let stored = defaults.bool(forKey: savedKey) ? defaults.string(forKey: originalLocationKey) : read("location") as? String
-        if let path = stored.map({ NSString(string: $0).expandingTildeInPath }), path != capturesFolder.path {
-            return URL(fileURLWithPath: path, isDirectory: true)
-        }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop", isDirectory: true)
-    }
-
-    /// Always on while the app runs: the fairy replaces the corner thumbnail and macOS's own file
-    /// (whether screenshots are kept is the fairy's call, see `AppSettings.keepScreenshots`).
-    func applyAtLaunch() {
+    /// On while the screenshot capability is: the fairy replaces the corner thumbnail and macOS's
+    /// own file (whether screenshots are kept is the fairy's call, see `ScreenshotSettings.keep`).
+    func activate() {
         defaults.removeObject(forKey: "takeover.enabled")   // the old on/off switch
-        activate()
-    }
-
-    private func activate() {
         try? FileManager.default.createDirectory(at: capturesFolder, withIntermediateDirectories: true)
         if !defaults.bool(forKey: savedKey) {
             // Remember what the user had so it can be restored exactly (absent keys stay absent).

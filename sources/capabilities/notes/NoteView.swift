@@ -1,4 +1,5 @@
 import AppKit
+import FairyKit
 import SwiftUI
 
 enum NoteLayout {
@@ -355,11 +356,13 @@ final class SummonPanel: NSPanel {
 
 private struct SummonView: View {
     @ObservedObject var model: SummonModel
+    /// The bead it grows out of: the size of the fairy's idle orb.
+    private static let orbSize: CGFloat = 14
 
     var body: some View {
         // Grows out of a bead the size of the fairy's idle orb.
-        let size = model.visible ? NoteLayout.summonSize : CGSize(width: FairyLayout.orbSize, height: FairyLayout.orbSize)
-        let shape = RoundedRectangle(cornerRadius: model.visible ? NoteLayout.summonRadius : FairyLayout.orbSize / 2, style: .continuous)
+        let size = model.visible ? NoteLayout.summonSize : CGSize(width: Self.orbSize, height: Self.orbSize)
+        let shape = RoundedRectangle(cornerRadius: model.visible ? NoteLayout.summonRadius : Self.orbSize / 2, style: .continuous)
         shape
             .fill(Theme.plate)
             .glassEffect(.regular.tint(.white.opacity(0.24)), in: shape)
@@ -369,36 +372,6 @@ private struct SummonView: View {
             .frame(width: size.width, height: size.height)
             .opacity(model.visible ? 1 : 0)
             .frame(width: SummonPanel.size.width, height: SummonPanel.size.height)
-    }
-}
-
-/// Layered slate shadow — a crisp contact edge, a mid key shadow and a wide ambient one — with
-/// the card's own shape cut out, so it never shows through translucent glass as a grey haze.
-/// `lift` scales the spread: small things sit close to the surface, a note floats higher.
-struct CardShadow<S: Shape>: View {
-    let shape: S
-    var lift: CGFloat = 1
-
-    var body: some View {
-        ZStack {
-            layer(opacity: 0.10, blur: 0.8, y: 0.6)                   // contact: defines the edge
-            layer(opacity: 0.07, blur: 5 * lift, y: 3 * lift)         // key: the main lift
-            layer(opacity: 0.06, blur: 16 * lift, y: 12 * lift)       // ambient: soft, far, low
-        }
-        .mask {
-            Rectangle()
-                .padding(-80)
-                .overlay(shape.blendMode(.destinationOut))
-                .compositingGroup()
-        }
-        .allowsHitTesting(false)
-    }
-
-    private func layer(opacity: Double, blur: CGFloat, y: CGFloat) -> some View {
-        shape
-            .fill(Theme.slate.opacity(opacity))
-            .blur(radius: blur)
-            .offset(y: y)
     }
 }
 
