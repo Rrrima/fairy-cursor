@@ -124,9 +124,14 @@ final class DropRouter {
         let ids = state.deliverable.map(\.id)
         guard let first = ids.first, let top = state.card(first) else { return }
         busy = true
-        let clipboard = PasteboardSnapshot(NSPasteboard.general)
+        let clipboard = PasteTarget.currentClipboard()
         let count = ids.count
-        PasteTarget.paste(top, to: pid, element: element, clipboard: clipboard) { [weak self] outcome in
+        let late = { [weak self] in
+            // The app was busy and took the ⌘V after we'd given up: the top card did land.
+            guard let self = self, self.state.card(first) != nil else { return }
+            self.state.deliver(ids: [first], hint: "pasted")
+        }
+        PasteTarget.paste(top, to: pid, element: element, clipboard: clipboard, lateAccepted: late) { [weak self] outcome in
             guard let self = self else { return }
             switch outcome {
             case .accepted(let delivery):

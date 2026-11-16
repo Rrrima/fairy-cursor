@@ -91,6 +91,10 @@ public enum PastePolicy {
         public var quietAfterRead: TimeInterval = 0.6
         /// …and in any case by this time.
         public var maxDelay: TimeInterval = 6.0
+        /// Nobody has read the screenshot yet: the ⌘V may still be waiting in a busy app's queue
+        /// (Chromium apps can be frozen for seconds). Putting the user's clipboard back now would
+        /// make that late ⌘V paste their text instead, so hold the screenshot there much longer.
+        public var noReadDelay: TimeInterval = 8.0
 
         public init() {}
 
@@ -98,10 +102,10 @@ public enum PastePolicy {
         ///   something meanwhile, or a later paste of the same pile wrote it, leave it alone).
         public func step(sinceSend: TimeInterval, sinceLastRead: TimeInterval?, pasteboardUnchanged: Bool) -> RestoreStep {
             guard pasteboardUnchanged else { return .abandon }
+            guard let quiet = sinceLastRead else { return sinceSend >= noReadDelay ? .restore : .wait }
             if sinceSend >= maxDelay { return .restore }
             guard sinceSend >= minDelay else { return .wait }
-            if let quiet = sinceLastRead, quiet < quietAfterRead { return .wait }
-            return .restore
+            return quiet < quietAfterRead ? .wait : .restore
         }
     }
 

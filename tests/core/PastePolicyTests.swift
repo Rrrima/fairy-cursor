@@ -101,9 +101,12 @@ final class PastePolicyTests: XCTestCase {
         XCTAssertEqual(r.step(sinceSend: 2.5, sinceLastRead: 0.2, pasteboardUnchanged: true), .wait)
     }
 
-    func testRestoresWithoutAnyRead() {
+    func testWithoutAnyReadHoldsTheScreenshotLonger() {
+        // The ⌘V may still be queued in a busy app: restoring now would paste the user's text.
         let r = PastePolicy.RestoreRules()
-        XCTAssertEqual(r.step(sinceSend: 2.0, sinceLastRead: nil, pasteboardUnchanged: true), .restore)
+        XCTAssertEqual(r.step(sinceSend: 2.0, sinceLastRead: nil, pasteboardUnchanged: true), .wait)
+        XCTAssertEqual(r.step(sinceSend: 6.0, sinceLastRead: nil, pasteboardUnchanged: true), .wait)
+        XCTAssertEqual(r.step(sinceSend: 8.0, sinceLastRead: nil, pasteboardUnchanged: true), .restore)
     }
 
     func testRestoresByMaxDelayEvenIfReadsContinue() {
