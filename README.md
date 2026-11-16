@@ -90,24 +90,42 @@ the fairy's own gestures live in this repo:
 - what a double-click does where: `sources/core/DropPolicy.swift`, `sources/core/PastePolicy.swift`
 - hold `⌥` for a note: `sources/capabilities/notes/NoteSummoner.swift`
 - the recording shortcut and `⌥` + scroll: `sources/capabilities/recording/RecordingInput.swift`
-- how ausm is wired in: `ScreenshotsCapability.swift` and `startCursorMonitor()` in `sources/app/AppDelegate.swift`
+- how ausm is wired in: `sources/capabilities/screenshots/ScreenshotsCapability.swift` and `startCursorMonitor()` in `sources/app/AppDelegate.swift`
 
-## add a capability
+## capabilities
 
-the fairy itself only follows the cursor, carries screenshots and drops them. everything else it does is a capability, and each one is its own module:
+the fairy itself does three things: it follows your cursor, carries screenshots, and drops them where you double-click. everything else it can do is a **capability**: a separate module you can switch on and off in **settings → capabilities**.
+
+### what's in it now
+
+| capability | id | what it does | shortcut | needs |
+|---|---|---|---|---|
+| screenshots | `fairy.screenshots` | takes over macos screenshots, so the fairy carries each one instead of a file on the desktop | `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` | screen recording |
+| notes | `fairy.notes` | sticky notes saved as markdown; double-click one to drop screenshots into it | hold `⌥`, click | accessibility |
+| screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom | `⌘ ⇧ 6` | screen recording, accessibility |
+
+switch one off and it gives back everything it took over: screenshots go back to macos, `⌘ ⇧ 6` back to the system, and a recording in progress is saved first. the menu and the permission prompts only show what the switched-on capabilities need.
+
+### how it's put together
 
 ```
 sources/
-  kit/            FairyKit: the Capability protocol and the FairyHost it talks to
+  kit/            FairyKit: what a capability is written against
   capabilities/
-    screenshots/  ⌘⇧3/4/5 → the fairy carries the shot
-    notes/        hold ⌥ for a note
-    recording/    ⌘⇧6 screen recording
+    screenshots/  one module per capability
+    notes/
+    recording/
   app/            the host: the fairy, the menu, settings, and the list of capabilities
   core/           pure logic, unit-tested
 ```
 
-a capability imports only `FairyKit`. it says who it is and what it needs, starts in `activate`, cleans up in `deactivate`, and can add menu items and settings rows:
+- a capability imports `FairyKit` (and `FairyCore` if it wants), never another capability. so you can remove one without breaking the others
+- anything capabilities share goes through the host (`FairyHost`): what the fairy is carrying, whether the screen is busy, where captures are saved. that's how recording keeps `⌥` for its zoom and notes stay quiet meanwhile
+- the host creates every capability once, calls `activate` when it's switched on and `deactivate` when it's switched off or the app quits
+
+### add one
+
+1. make a folder `sources/capabilities/hello/` with a type that conforms to `Capability`:
 
 ```swift
 import AppKit
@@ -130,9 +148,23 @@ public final class HelloCapability: Capability {
 }
 ```
 
-through `FairyHost` it can hand the fairy a screenshot (`carry`), use what it's carrying (`carried`, `delivered`), keep other capabilities' gestures quiet while it has the screen (`setExclusive`), and find the captures folder. to try it, add a target for it in `Package.swift` and list it in `CapabilityRegistry.builtIn` (`sources/app/CapabilityRegistry.swift`). it shows up in settings → capabilities.
+2. add a target for it in `Package.swift`, and add it to the `FairyCursor` target's dependencies:
 
-capabilities are compiled in for now. installing one you downloaded, without rebuilding, is next.
+```swift
+.target(name: "FairyHello", dependencies: ["FairyKit"], path: "sources/capabilities/hello"),
+```
+
+3. list it in `CapabilityRegistry.builtIn` (`sources/app/CapabilityRegistry.swift`), then `scripts/bundle.sh --run`. it shows up in settings → capabilities, switched on.
+
+what a capability can do:
+
+- **`manifest`**: its id (stable forever: it keys the on/off switch), name, one-line summary, the permissions it needs and the shortcuts it takes
+- **`activate(host:)` / `deactivate()`**: start your monitors, taps and windows, then stop all of them. `deactivate` must leave the mac as it found it
+- **`menuItems()`**: items for the menu bar menu, rebuilt each time it opens (`ActionMenuItem` takes a closure)
+- **`settingsView()`**: rows for its own section in settings (`ToggleRow`, `FolderRow` keep it looking like the rest)
+- through **`FairyHost`**: hand the fairy a screenshot (`carry`), use what it's carrying (`carried`, `delivered`), hide the fairy while a system ui is up (`setCaptureUIVisible`), have the screen to itself for a while (`setExclusive`), take double-clicks over its own windows (`setDropZone`), and find the captures folder (`capturesFolder`). whatever a capability sets this way is undone for it when it's switched off
+
+capabilities are compiled into the app for now. installing one someone else wrote, without rebuilding, is next.
 
 ## develop
 
