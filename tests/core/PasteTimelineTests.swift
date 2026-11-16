@@ -66,6 +66,15 @@ final class PasteTimelineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(r.restoreAt ?? 0, 2.4 - 0.001, "restore waits until reads go quiet")
     }
 
+    func testBusyAppHandlingCmdVLateStillGetsTheScreenshot() {
+        // A Chromium page frozen for 3 s: the fairy reports "couldn't paste" at 1.6 s, but the
+        // clipboard must still hold the screenshot when the page finally reads it at 3 s.
+        let r = Timeline(reads: [3.0]).run()
+        XCTAssertEqual(r.outcome, .failed)
+        XCTAssertTrue(r.restored)
+        XCTAssertGreaterThan(r.restoreAt ?? 0, 3.0)
+    }
+
     func testSearchFieldRefusesImage() {
         // Single-line field: looked at the pasteboard types, never read image data.
         let r = Timeline(hasProbe: true, reads: []).run()

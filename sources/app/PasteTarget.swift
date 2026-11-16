@@ -109,30 +109,33 @@ enum PasteTarget {
                 container = next as! AXUIElement
             }
             self.container = container
-            self.before = Self.signature(element: element, container: container)
             self.isMultiline = axStringAttribute(element, kAXRoleAttribute) == kAXTextAreaRole
+            // Multi-line composers aren't verified by the probe, so don't walk them: every
+            // accessibility call is answered on the target's main thread and delays its ⌘V.
+            self.before = Self.signature(element: element, container: container, countImages: !isMultiline)
         }
 
         func changed() -> Bool {
-            return Self.signature(element: element, container: container) != before
+            return Self.signature(element: element, container: container, countImages: !isMultiline) != before
         }
 
-        private static func signature(element: AXUIElement, container: AXUIElement) -> Signature {
+        private static func signature(element: AXUIElement, container: AXUIElement, countImages: Bool) -> Signature {
             var value: AnyObject?
             AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
             let text = (value as? String) ?? ""
             var count: AnyObject?
             AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &count)
             let characters = (count as? Int) ?? text.count
-            return Signature(characters: characters, valueHash: String(text.prefix(4000)).hashValue, images: imageCount(under: container))
+            return Signature(characters: characters, valueHash: String(text.prefix(4000)).hashValue, images: countImages ? imageCount(under: container) : 0)
         }
 
         private static func imageCount(under root: AXUIElement) -> Int {
             var images = 0
             var visited = 0
             func walk(_ node: AXUIElement, _ depth: Int) {
-                if depth > 9 || visited > 1500 { return }
+                if depth > 9 || visited > 300 { return }
                 visited += 1
+                AXUIElementSetMessagingTimeout(node, 0.1)
                 if axStringAttribute(node, kAXRoleAttribute) == kAXImageRole { images += 1 }
                 var children: AnyObject?
                 guard AXUIElementCopyAttributeValue(node, kAXChildrenAttribute as CFString, &children) == .success,
@@ -142,6 +145,12 @@ enum PasteTarget {
             walk(root, 0)
             return images
         }
+    }
+
+    /// The user's clipboard as it is now. While an earlier paste still has a screenshot on the
+    /// pasteboard (its restore is pending), that paste's copy is the user's real clipboard.
+    static func currentClipboard() -> PasteboardSnapshot {
+        PasteJob.pendingRestore ?? PasteboardSnapshot(NSPasteboard.general)
     }
 
     nonisolated static let probeQueue = DispatchQueue(label: "fairy.paste-probe", qos: .userInitiated)
@@ -156,10 +165,12 @@ enum PasteTarget {
     static func paste(_ screenshot: HeldScreenshot, to pid: pid_t?, element: AXUIElement?,
                       collapseSelection: Bool = true, verify: Bool = true,
                       clipboard: PasteboardSnapshot? = nil,
+                      lateAccepted: (() -> Void)? = nil,
                       completion: @escaping (Outcome) -> Void) {
         let job = PasteJob(screenshot: screenshot, pid: pid, element: element, collapseSelection: collapseSelection,
-                           verify: verify, snapshot: clipboard ?? PasteboardSnapshot(NSPasteboard.general),
+                           verify: verify, snapshot: clipboard ?? currentClipboard(),
                            completion: completion)
+        job.lateAccepted = lateAccepted
         job.start()
     }
 }
@@ -182,6 +193,15 @@ final class PasteJob {
     private let verify: Bool
     private let snapshot: PasteboardSnapshot
     private var completion: ((PasteTarget.Outcome) -> Void)?
+    /// Called if the target reads the screenshot after the outcome was reported as failed: a
+    /// busy app handled the ⌘V late, and the screenshot did land.
+    var lateAccepted: (() -> Void)?
+    private var failedWithReads: Int?
+
+    /// The clipboard a running paste will put back, if one is still waiting to.
+    static var pendingRestore: PasteboardSnapshot? {
+        running.values.first { $0.sentAt > 0 && !$0.restoreDone }?.snapshot
+    }
 
     private var terminal = false
     private var delivery = PasteTarget.Delivery.image
@@ -317,7 +337,8 @@ final class PasteJob {
             NSLog("[FairyCursor] paste: field unchanged → rejected")
             finish(.rejected)
         case .failed:
-            NSLog("[FairyCursor] paste: nothing read the pasteboard → failed")
+            NSLog("[FairyCursor] paste: nothing read the pasteboard yet → failed (still watching for a late read)")
+            failedWithReads = promise.reads
             finish(.failed)
         case .pending:
             if hasProbe, let probe = probe, !probeCheckInFlight, now - lastProbeCheck >= 0.2 {
@@ -339,6 +360,11 @@ final class PasteJob {
 
     private func pollRestore() {
         guard let promise = promise else { return }
+        if let before = failedWithReads, promise.reads > before, let late = lateAccepted {
+            NSLog("[FairyCursor] paste: read %.1fs after ⌘V → it landed late", now - sentAt)
+            lateAccepted = nil
+            late()
+        }
         let pasteboard = NSPasteboard.general
         let rules = PastePolicy.RestoreRules()
         let step = rules.step(sinceSend: now - sentAt,
