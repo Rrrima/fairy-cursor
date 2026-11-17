@@ -1,5 +1,6 @@
 import AppKit
 import FairyCore
+import FairyKit
 
 /// The pen and highlighter while recording: a clear window over the recorded display that is
 /// click-through until a tool is picked up, then takes the mouse and draws. Unlike the blue
@@ -90,7 +91,17 @@ private final class InkView: NSView {
         cursorTimer = nil
         guard on else { return }
         cursorTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.cursor.set() }
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                self.cursor.set()
+                // A release that never reached us (it happens): finish the stroke anyway rather
+                // than leave it hanging off the pointer.
+                if self.ink.current != nil, NSEvent.pressedMouseButtons & 1 == 0 {
+                    FairyLog.write("ink: lost the mouse-up, finishing the stroke")
+                    self.ink.endStroke()
+                    self.redraw()
+                }
+            }
         }
     }
 
@@ -110,10 +121,13 @@ private final class InkView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    /// y-down, like the stroke algorithm (`Freehand`) expects.
+    override var isFlipped: Bool { true }
 
     // MARK: Mouse
 
     override func mouseDown(with event: NSEvent) {
+        FairyLog.write("ink: down (\(ink.tool?.rawValue ?? "no tool"))")
         cursor.set()
         ink.beginStroke(at: convert(event.locationInWindow, from: nil))
         redraw()
@@ -121,12 +135,17 @@ private final class InkView: NSView {
 
     override func mouseDragged(with event: NSEvent) {
         cursor.set()
+        if ink.current == nil {
+            // The press went elsewhere (or was lost): start the stroke here.
+            ink.beginStroke(at: convert(event.locationInWindow, from: nil))
+        }
         ink.extendStroke(to: convert(event.locationInWindow, from: nil))
         redrawCurrent()
     }
 
     override func mouseUp(with event: NSEvent) {
         cursor.set()
+        FairyLog.write("ink: up after \(ink.current?.points.count ?? 0) points")
         ink.endStroke()
         redraw()
     }
@@ -138,8 +157,8 @@ private final class InkView: NSView {
 
     // MARK: Drawing
 
-    /// One layer per stroke: a whole stroke is a single path, so a highlighter crossing itself
-    /// doesn't darken where it overlaps.
+    /// One layer per stroke: a whole stroke is one filled shape (non-zero winding), so a
+    /// highlighter crossing itself doesn't darken where it overlaps.
     func redraw() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -148,7 +167,7 @@ private final class InkView: NSView {
         highlights.sublayers = nil
         lines.sublayers = nil
         for stroke in ink.strokes { add(stroke) }
-        if let current = ink.current { add(current).name = "current" }
+        if let current = ink.current { add(current, complete: false).name = "current" }
         CATransaction.commit()
     }
 
@@ -158,18 +177,18 @@ private final class InkView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         if let layer = parent.sublayers?.last(where: { $0.name == "current" }) as? CAShapeLayer {
-            layer.path = Ink.path(through: current.points)
+            layer.path = Ink.shape(of: current, complete: false)
         } else {
-            add(current).name = "current"
+            add(current, complete: false).name = "current"
         }
         CATransaction.commit()
     }
 
     @discardableResult
-    private func add(_ stroke: Ink.Stroke) -> CAShapeLayer {
+    private func add(_ stroke: Ink.Stroke, complete: Bool = true) -> CAShapeLayer {
         let layer = InkStyle.layer(for: stroke.tool)
         layer.frame = bounds
-        layer.path = Ink.path(through: stroke.points)
+        layer.path = Ink.shape(of: stroke, complete: complete)
         (stroke.tool == .highlighter ? highlights : lines).addSublayer(layer)
         return layer
     }
@@ -196,28 +215,27 @@ private final class InkView: NSView {
 enum InkStyle {
     /// The fairy's blue: the ink is the live thing on screen.
     static let penColor = NSColor(calibratedHue: 212 / 360, saturation: 0.72, brightness: 0.88, alpha: 1)
-    static let penWidth: CGFloat = 4
+    /// About how wide the pen line is at an easy pace (it swells and thins around this).
+    static let penWidth: CGFloat = 5
     /// A soft marker yellow, see-through so the text under it stays readable.
     static let highlighterColor = NSColor(calibratedHue: 52 / 360, saturation: 0.75, brightness: 1, alpha: 0.38)
     static let highlighterWidth: CGFloat = 22
 
     static func layer(for tool: InkTool) -> CAShapeLayer {
+        // Strokes are filled outlines (their width varies along the line), not stroked paths.
         let layer = CAShapeLayer()
-        layer.fillColor = nil
-        layer.lineCap = .round
-        layer.lineJoin = .round
+        layer.strokeColor = nil
+        layer.fillRule = .nonZero
         switch tool {
         case .pen:
-            layer.strokeColor = penColor.cgColor
-            layer.lineWidth = penWidth
+            layer.fillColor = penColor.cgColor
             // A faint lift, so the line reads on any background.
             layer.shadowColor = NSColor.black.cgColor
             layer.shadowOpacity = 0.18
             layer.shadowRadius = 1.5
-            layer.shadowOffset = CGSize(width: 0, height: -0.5)
+            layer.shadowOffset = CGSize(width: 0, height: 0.5)
         case .highlighter:
-            layer.strokeColor = highlighterColor.cgColor
-            layer.lineWidth = highlighterWidth
+            layer.fillColor = highlighterColor.cgColor
         }
         return layer
     }

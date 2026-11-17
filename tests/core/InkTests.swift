@@ -78,17 +78,31 @@ final class InkTests: XCTestCase {
         XCTAssertEqual(ink.current?.points.count, 2)
     }
 
-    func testPathThroughOnePointIsADot() {
-        let path = Ink.path(through: [CGPoint(x: 3, y: 4)])
-        XCTAssertFalse(path.isEmpty)
-        XCTAssertEqual(path.boundingBoxOfPath.origin, CGPoint(x: 3, y: 4))
+    func testAClickMakesARoundDot() {
+        let shape = Ink.shape(of: Ink.Stroke(tool: .pen, points: [CGPoint(x: 100, y: 100)]), complete: true)
+        let box = shape.boundingBoxOfPath
+        XCTAssertFalse(shape.isEmpty)
+        XCTAssertTrue(box.contains(CGPoint(x: 100, y: 100)))
+        XCTAssertEqual(box.width, box.height, accuracy: 1.5)
     }
 
-    func testPathStartsAndEndsOnTheStroke() {
-        let points = (0...10).map { CGPoint(x: CGFloat($0) * 10, y: CGFloat($0 % 2) * 6) }
-        let path = Ink.path(through: points)
-        XCTAssertEqual(path.currentPoint, points.last)
-        XCTAssertTrue(path.boundingBox.contains(points[0]))
+    func testCompletedStrokeCoversItsEnds() {
+        let points = (0...30).map { CGPoint(x: CGFloat($0) * 6, y: 50 + sin(CGFloat($0) / 4) * 20) }
+        let shape = Ink.shape(of: Ink.Stroke(tool: .pen, points: points), complete: true)
+        XCTAssertTrue(shape.contains(points[0]))
+        XCTAssertTrue(shape.contains(points.last!))
+        XCTAssertTrue(shape.contains(points[15]))
+    }
+
+    func testPenThinsWhenFastAndHighlighterDoesNot() {
+        // Same distance, drawn slowly (many close points) and quickly (few far apart).
+        func width(_ tool: InkTool, step: CGFloat) -> CGFloat {
+            let points = stride(from: 0, through: 300, by: step).map { CGPoint(x: $0, y: 100) }
+            return Ink.shape(of: Ink.Stroke(tool: tool, points: points), complete: true)
+                .boundingBoxOfPath.height
+        }
+        XCTAssertGreaterThan(width(.pen, step: 2), width(.pen, step: 30) + 1)
+        XCTAssertEqual(width(.highlighter, step: 2), width(.highlighter, step: 30), accuracy: 1)
     }
 
     private func drawLine(_ ink: inout Ink, y: CGFloat = 10) {

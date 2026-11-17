@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// What the cursor draws with while recording.
 public enum InkTool: String, Sendable, CaseIterable {
@@ -32,7 +33,7 @@ public struct Ink: Sendable {
     public private(set) var current: Stroke?
 
     /// Points closer than this to the previous one add nothing but weight.
-    static let minStep: CGFloat = 1.5
+    static let minStep: CGFloat = 1
 
     public init() {}
 
@@ -88,26 +89,22 @@ public struct Ink: Sendable {
         strokes.removeAll()
     }
 
-    /// A smooth line through the points: straight segments become quadratic curves through
-    /// their midpoints, so a quick hand-drawn line doesn't look like a polygon. One point
-    /// draws a dot (a zero-length line with a round cap).
-    public static func path(through points: [CGPoint]) -> CGPath {
-        let path = CGMutablePath()
-        guard let first = points.first else { return path }
-        path.move(to: first)
-        if points.count == 1 {
-            path.addLine(to: first)
-            return path
+    /// How each tool's ink behaves (see `Freehand`).
+    public static func options(for tool: InkTool) -> Freehand.Options {
+        switch tool {
+        case .pen:
+            // Excalidraw's freedraw settings (its "bold" width): the line swells when you slow
+            // down and thins when you flick, with a soft ease into full pressure.
+            return Freehand.Options(size: 8.5, thinning: 0.6, smoothing: 0.5, streamline: 0.5,
+                                    easing: { sin($0 * .pi / 2) })
+        case .highlighter:
+            // A marker keeps its width; it only gets the smoothing.
+            return Freehand.Options(size: 22, thinning: 0, smoothing: 0.5, streamline: 0.6)
         }
-        if points.count == 2 {
-            path.addLine(to: points[1])
-            return path
-        }
-        for i in 1..<(points.count - 1) {
-            let mid = CGPoint(x: (points[i].x + points[i + 1].x) / 2, y: (points[i].y + points[i + 1].y) / 2)
-            path.addQuadCurve(to: mid, control: points[i])
-        }
-        path.addLine(to: points[points.count - 1])
-        return path
+    }
+
+    /// The filled shape of a stroke. `complete`: the pen has lifted, so it reaches the last point.
+    public static func shape(of stroke: Stroke, complete: Bool) -> CGPath {
+        Freehand.path(Freehand.outline(stroke.points, options(for: stroke.tool), complete: complete))
     }
 }
