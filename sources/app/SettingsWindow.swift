@@ -37,8 +37,7 @@ final class SettingsModel: ObservableObject {
     }
 }
 
-/// A borderless, transparent window: the glass card SwiftUI draws is the whole window, like
-/// the notes. Moves by its background, closes on Esc or its own close button; reused while open.
+/// A borderless, transparent window: the white card SwiftUI draws is the whole window. Moves by its background, closes on Esc or its own close button; reused while open.
 @MainActor
 final class SettingsWindowController {
     private var window: SettingsPanel?
@@ -78,11 +77,11 @@ final class SettingsPanel: NSWindow {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 480, height: 640), styleMask: [.borderless], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false                       // SwiftUI draws the glass shadow
+        hasShadow = false                       // SwiftUI draws the card's shadow
         isMovableByWindowBackground = true
         isReleasedWhenClosed = false
         title = "Fairy Cursor Settings"
-        // The rest of the app is light glass; keep this window in the same light.
+        // The card is white paper whatever the system appearance; keep its controls light too.
         appearance = NSAppearance(named: .aqua)
     }
 
@@ -145,7 +144,7 @@ final class ResizableFrameView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         // Square outside, so the corners (where the card curves away) can be grabbed too.
         let ring = NSBezierPath(rect: card.insetBy(dx: -outside, dy: -outside))
-        ring.append(NSBezierPath(roundedRect: card, xRadius: 26, yRadius: 26))
+        ring.append(NSBezierPath(roundedRect: card, xRadius: 22, yRadius: 22))
         ring.windingRule = .evenOdd
         NSColor(white: 1, alpha: 0.004).setFill()
         ring.fill()
@@ -204,6 +203,9 @@ final class ResizableFrameView: NSView {
 
 private typealias Ink = SettingsInk
 
+/// Settings as one white page, like the website: no boxes and no rules. A small grey label opens
+/// each group, space separates the groups, and the only tone is the pale patch a capability's own
+/// options sit on, so they read as belonging to the switch above them.
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var settings: AppSettings
@@ -212,44 +214,37 @@ struct SettingsView: View {
 
     /// Room around the card for its shadow (the window itself is transparent).
     static let shadowInset: CGFloat = 28
-    private let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
+    private let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
 
     /// The card's natural size; the window opens at it and can be resized from there.
-    static let idealSize = CGSize(width: 420, height: 706)
-    static let minSize = CGSize(width: 340, height: 300)
+    static let idealSize = CGSize(width: 440, height: 720)
+    static let minSize = CGSize(width: 360, height: 300)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // The title stays put; the sections scroll under it when the window is short.
             HStack(alignment: .center) {
                 Text("Settings")
-                    .font(Theme.font(20, weight: .semibold))
+                    .font(.system(size: 20, weight: .semibold))
+                    .tracking(-0.2)
                     .foregroundStyle(Ink.primary)
                 Spacer()
-                CloseButton(action: close)
+                PaperCloseButton(action: close)
             }
-            .padding(.horizontal, 30)
+            .padding(.horizontal, 32)
             .padding(.top, 26)
-            .padding(.bottom, 20)
+            .padding(.bottom, 18)
 
             ScrollView(.vertical) {
                 sections
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 4)
+                    .padding(.bottom, 32)
             }
             .scrollIndicators(.automatic)
         }
         .frame(minWidth: Self.minSize.width, maxWidth: .infinity, minHeight: Self.minSize.height, maxHeight: .infinity, alignment: .topLeading)
-        // Liquid glass, same recipe as the notes: a light plate over live glass, a hairline and a
-        // lit rim for the edge, a layered slate shadow underneath.
-        .background {
-            shape
-                .fill(Theme.plate)
-                .glassEffect(.regular.tint(.white.opacity(0.30)), in: shape)
-                .overlay(shape.strokeBorder(Theme.hairlineStrong, lineWidth: 1))
-                .overlay(shape.inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
-                .background(CardShadow(shape: shape, lift: 1.2))
-        }
+        .background(PaperCard(shape: shape))
         .clipShape(shape)
         .padding(SettingsView.shadowInset)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -258,23 +253,18 @@ struct SettingsView: View {
     }
 
     private var sections: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            // What the fairy can do: each one switches on and off on its own.
-            section("Capabilities") {
+        VStack(alignment: .leading, spacing: 34) {
+            // What the fairy can do: each one switches on and off on its own, and keeps its own
+            // options right under its switch.
+            section("Capabilities", spacing: 22) {
                 ForEach(capabilities.all.indices, id: \.self) { i in
-                    let manifest = CapabilityRegistry.manifest(of: capabilities.all[i])
-                    ToggleRow(title: manifest.name, detail: manifest.summary, isOn: Binding(
+                    let capability = capabilities.all[i]
+                    let manifest = CapabilityRegistry.manifest(of: capability)
+                    let on = capabilities.isEnabled(manifest.id)
+                    CapabilityRow(manifest: manifest, isOn: Binding(
                         get: { capabilities.isEnabled(manifest.id) },
                         set: { capabilities.setEnabled(manifest.id, $0); model.refresh() }
-                    ))
-                }
-            }
-
-            ForEach(capabilities.all.indices, id: \.self) { i in
-                let capability = capabilities.all[i]
-                let manifest = CapabilityRegistry.manifest(of: capability)
-                if capabilities.isEnabled(manifest.id), let rows = capability.settingsView() {
-                    section(manifest.name) { rows }
+                    ), options: on ? capability.settingsView() : nil)
                 }
             }
 
@@ -300,25 +290,62 @@ struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// A small tracked label, then rows on one surface.
-    private func section<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(label.uppercased())
-                .font(Theme.font(10.5, weight: .semibold))
-                .tracking(0.6)
+    /// A small grey label, then its rows straight on the page.
+    private func section<Content: View>(_ label: String, spacing: CGFloat = 16, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(label)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Ink.faint)
-            VStack(alignment: .leading, spacing: 14) { content() }
-                .padding(16)
+            VStack(alignment: .leading, spacing: spacing) { content() }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // Rows on a brighter patch of the same glass, not a card of their own.
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.42))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.8)
-                        )
-                )
+        }
+    }
+}
+
+/// One capability: its name with its keys beside it, what it does in a line, and its switch.
+/// While it's on, its own options sit on a pale patch right below.
+private struct CapabilityRow: View {
+    let manifest: CapabilityManifest
+    @Binding var isOn: Bool
+    let options: AnyView?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 9) {
+                        Text(manifest.name)
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .tracking(-0.1)
+                            .foregroundStyle(Ink.primary)
+                            .fixedSize()
+                        // One chip per shortcut, so three of them still fit beside the name.
+                        HStack(spacing: 4) {
+                            ForEach(manifest.shortcuts, id: \.self) { KeyChip($0) }
+                        }
+                        .opacity(isOn ? 1 : 0.45)
+                    }
+                    Text(manifest.summary)
+                        .font(.system(size: 12.5))
+                        .lineSpacing(1.5)
+                        .foregroundStyle(Ink.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .tint(Ink.primary)
+                    .padding(.top, 2)
+            }
+            if let options = options {
+                options
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color(white: 0.972)))
+            }
         }
     }
 }
@@ -330,19 +357,68 @@ private struct PermissionRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(title).font(Theme.font(13.5, weight: .medium)).foregroundStyle(Ink.primary)
+            Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.primary)
             Spacer(minLength: 8)
-            if granted {
-                Text("Allowed").font(Theme.font(12)).foregroundStyle(Ink.faint)
-            } else {
-                QuietButton(title: "Allow…", action: open)
-            }
+            PermissionState(granted: granted, open: open)
         }
     }
 }
 
-/// Closes the window: a small glass circle, quiet until hovered.
-private struct CloseButton: View {
+/// "Allowed" with a tick, or a button that opens the right pane of System Settings.
+struct PermissionState: View {
+    let granted: Bool
+    let open: () -> Void
+
+    var body: some View {
+        if granted {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark").font(.system(size: 9.5, weight: .bold))
+                Text("Allowed").font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(Ink.faint)
+            .frame(height: 24)
+        } else {
+            InkButton(title: "Allow…", action: open)
+        }
+    }
+}
+
+/// The one dark button on a page: the thing to do next.
+struct InkButton: View {
+    let title: String
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 13)
+                .padding(.vertical, 5)
+                .background(Capsule().fill(Ink.primary.opacity(hovering ? 0.82 : 1)))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: hovering)
+    }
+}
+
+/// The white card Settings and the welcome guide are drawn on: paper, a hairline, a soft shadow.
+struct PaperCard<S: InsettableShape>: View {
+    let shape: S
+
+    var body: some View {
+        shape
+            .fill(Color.white)
+            .overlay(shape.strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5))
+            .background(CardShadow(shape: shape, lift: 1.3))
+    }
+}
+
+/// Closes the window: a small cross, on a pale disc once hovered.
+struct PaperCloseButton: View {
     let action: () -> Void
     @State private var hovering = false
 
@@ -352,7 +428,8 @@ private struct CloseButton: View {
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(hovering ? Ink.primary : Ink.faint)
                 .frame(width: 24, height: 24)
-                .glassEffect(.regular.tint(.white.opacity(hovering ? 0.45 : 0.2)).interactive(), in: Circle())
+                .background(Circle().fill(Ink.fill.opacity(hovering ? 1 : 0)))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .help("Close")

@@ -76,6 +76,9 @@ public protocol FairyHost: AnyObject {
 
     /// Hand the fairy a screenshot to carry. `kept`: it's already saved, so shaking only lets go.
     func carry(_ image: CGImage, scale: CGFloat, capturedAt: Date, kept: Bool)
+    /// Hand the fairy a finished screen recording to carry, like a screenshot: double-click a text
+    /// box to paste the video file, a Finder window to copy it there. `poster` is the card's picture.
+    func carry(recording url: URL, poster: CGImage, scale: CGFloat, duration: TimeInterval)
     /// Remember a screenshot only for "Restore Last Screenshot", without putting it on the pile.
     func keepForRestore(_ image: CGImage, scale: CGFloat, capturedAt: Date)
     /// What the fairy is carrying, top card first (empty when its hands are free).

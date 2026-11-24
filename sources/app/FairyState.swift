@@ -37,11 +37,17 @@ final class FairyState: ObservableObject {
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
     /// `kept`: the screenshot was already saved, so shaking only lets go of it.
-    func hold(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false) {
-        pile.push(makeCard(image: image, scale: scale, capturedAt: capturedAt, kept: kept))
+    /// `movie`: the card is a screen recording (already saved), `image` its poster frame.
+    func hold(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false,
+              movie: URL? = nil, duration: TimeInterval? = nil) {
+        pile.push(makeCard(image: image, scale: scale, capturedAt: capturedAt, kept: kept, movie: movie, duration: duration))
         let count = pile.active.count
         let verb = kept ? "saved · shake to let go" : "shake to discard"
-        flashHint(count > 1 ? "\(count) screenshots · \(verb)" : verb, for: 2.4)
+        if movie != nil, count == 1 {
+            flashHint("recording · double-click a text box to share", for: 2.8)
+        } else {
+            flashHint(count > 1 ? "\(count) held · \(verb)" : verb, for: 2.4)
+        }
     }
 
     /// A capture we don't trust (from a screenshot session that had already ended on screen):
@@ -51,10 +57,12 @@ final class FairyState: ObservableObject {
         schedulePrune()
     }
 
-    private func makeCard(image: CGImage, scale: CGFloat, capturedAt: Date, kept: Bool = false) -> HeldScreenshot {
+    private func makeCard(image: CGImage, scale: CGFloat, capturedAt: Date, kept: Bool = false,
+                          movie: URL? = nil, duration: TimeInterval? = nil) -> HeldScreenshot {
         // Alternate the tilt direction so each new sheet peeks out from the previous one.
         let sign: Double = pile.cards.count % 2 == 0 ? 1 : -1
-        return HeldScreenshot(image: image, scale: scale, capturedAt: capturedAt, kept: kept, tilt: sign * Double.random(in: 8...15))
+        return HeldScreenshot(image: image, scale: scale, capturedAt: capturedAt, kept: kept, tilt: sign * Double.random(in: 8...15),
+                              movie: movie, duration: duration)
     }
 
     /// Shake off the top card.

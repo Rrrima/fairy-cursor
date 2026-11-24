@@ -78,6 +78,13 @@ final class NotesController: NSObject {
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var taken: [UUID] = []
         let lines: [String] = shots.compactMap { shot in
+            if let movie = shot.movie {
+                // A recording: copy the video next to the note and link it.
+                let name = "recording-\(UUID().uuidString.prefix(8).lowercased()).\(movie.pathExtension)"
+                guard (try? FileManager.default.copyItem(at: movie, to: folder.appendingPathComponent(name))) != nil else { return nil }
+                taken.append(shot.id)
+                return "[recording](attachments/\(name))"
+            }
             let name = "shot-\(UUID().uuidString.prefix(8).lowercased()).png"
             guard let data = shot.pngData(), (try? data.write(to: folder.appendingPathComponent(name), options: .atomic)) != nil else { return nil }
             taken.append(shot.id)

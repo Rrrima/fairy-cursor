@@ -36,6 +36,11 @@ public struct RecordingViewport {
         targetZoom = min(maxZoom, max(minZoom, targetZoom * exp(amount)))
     }
 
+    /// Back to the whole display, with the usual ease (double-tap ⌥).
+    public mutating func reset() {
+        targetZoom = minZoom
+    }
+
     /// The area shown right now.
     public var area: CGRect { area(zoom: zoom, center: center) }
 

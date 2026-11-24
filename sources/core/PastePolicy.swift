@@ -16,8 +16,70 @@ public enum PastePolicy {
     public static let activationTimeout: TimeInterval = 0.6
     /// Between collapsing the selection (→) and pressing ⌘V.
     public static let collapseToPasteDelay: TimeInterval = 0.06
+    /// Between closing a whiteboard's fresh text box (esc) and pressing ⌘V.
+    public static let dismissToPasteDelay: TimeInterval = 0.18
 
     public enum MouseUpStep: Equatable { case wait, proceed }
+
+    // MARK: Terminals: wait out copy-on-select
+
+    /// Terminals (iTerm, and TUIs like Claude Code through it) copy the selection to the
+    /// clipboard on every mouse-up: the double-clicked word, or the whole wrapped line when a
+    /// third click follows. A copy that lands after our write replaces the screenshot, and the
+    /// ⌘V then pastes that text. So for terminals the keystroke waits until the clicking is over
+    /// and the clipboard has been quiet for a moment.
+    public struct TerminalSettle {
+        /// Since the last mouse-up (a third click restarts it).
+        public var afterMouseUp: TimeInterval = 0.14
+        /// Since the last time anyone wrote the clipboard.
+        public var clipboardQuiet: TimeInterval = 0.09
+        /// Never hold the paste longer than this.
+        public var timeout: TimeInterval = 1.5
+
+        public init() {}
+
+        public func step(elapsed: TimeInterval, buttonsDown: Bool, sinceMouseUp: TimeInterval,
+                         sinceClipboardChange: TimeInterval?) -> MouseUpStep {
+            if elapsed >= timeout { return .proceed }
+            if buttonsDown || sinceMouseUp < afterMouseUp { return .wait }
+            if let quiet = sinceClipboardChange, quiet < clipboardQuiet { return .wait }
+            return .proceed
+        }
+    }
+
+    // MARK: Someone else wrote the clipboard after us
+
+    public enum OverwriteStep: Equatable {
+        /// Put the screenshot back: the ⌘V has not been served yet and would paste their text.
+        case rewrite
+        /// The paste was already served; treat the write as selection noise and still restore
+        /// the user's clipboard afterwards.
+        case adopt
+        /// A real copy by the user: leave it alone and never restore over it.
+        case leave
+    }
+
+    /// How long after ⌘V a foreign clipboard write is taken for the click's own side effect
+    /// rather than the user copying something.
+    public static let overwriteWindow: TimeInterval = 1.0
+    public static let maxRewrites = 3
+
+    public static func overwriteStep(sinceSend: TimeInterval, reads: Int, rewrites: Int, isTerminal: Bool) -> OverwriteStep {
+        guard sinceSend < overwriteWindow else { return .leave }
+        if reads == 0 { return rewrites < maxRewrites ? .rewrite : .leave }
+        return isTerminal ? .adopt : .leave
+    }
+
+    // MARK: The user's clipboard, as it was before the click
+
+    /// Which copy of the clipboard to put back after the paste. `remembered` was taken at the
+    /// first mouse-down of the double-click; if the clipboard changed between then and now, that
+    /// change is the terminal's copy-on-select, not something the user copied.
+    public static func useRememberedClipboard(rememberedCount: Int?, currentCount: Int, age: TimeInterval?) -> Bool {
+        guard let remembered = rememberedCount, let age = age else { return false }
+        if remembered == currentCount { return true }
+        return age <= 2.0
+    }
 
     public static func mouseUpStep(elapsed: TimeInterval, buttonsDown: Bool) -> MouseUpStep {
         if !buttonsDown || elapsed >= mouseUpTimeout { return .proceed }
@@ -60,12 +122,19 @@ public enum PastePolicy {
         public var hasProbe: Bool
         /// With no read by then, give up: the paste did not happen.
         public var noReadTimeout: TimeInterval = 1.6
+        /// A drop onto a canvas is a guess (nothing says it takes images until it reads one),
+        /// so give up sooner.
+        public var isCanvas = false
         /// Probe-verified fields: unchanged by then → the field refused the image.
         public var probeTimeout: TimeInterval = 3.0
         /// A read counts once the reader had a moment to finish.
         public var readSettle: TimeInterval = 0.1
 
-        public init(hasProbe: Bool) { self.hasProbe = hasProbe }
+        public init(hasProbe: Bool, isCanvas: Bool = false) {
+            self.hasProbe = hasProbe
+            self.isCanvas = isCanvas
+            if isCanvas { noReadTimeout = 1.0 }
+        }
 
         public func evaluate(elapsed: TimeInterval, reads: Int, probeChanged: Bool) -> Outcome {
             if probeChanged { return .accepted }

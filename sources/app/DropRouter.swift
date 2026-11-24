@@ -27,7 +27,9 @@ final class DropRouter {
         let facts = DropPolicy.DoubleClick(
             isHolding: state.isHolding, hiddenForCapture: state.hiddenForCapture, busy: busy,
             clickCount: event.clickCount ?? 0, targetIsOwnProcess: pid == getpid(),
-            isFinder: isFinder, finderDropSpot: finderSpot, editableUnderCursor: editable
+            isFinder: isFinder, finderDropSpot: finderSpot, editableUnderCursor: editable,
+            // A terminal too busy to answer the lookup (no role came back) is still a terminal.
+            silentTerminal: event.uiElementRole == nil && PasteTarget.isTerminal(pid: pid)
         )
         let action = DropPolicy.decide(facts)
         NSLog("[FairyCursor] double-click → %@ (pid %d role %@)", String(describing: action), pid ?? -1, event.uiElementRole ?? "-")
@@ -37,9 +39,11 @@ final class DropRouter {
         case .saveToFinder:
             saveToFinder(element: context?.element)
         case .paste:
-            deliverPaste(to: pid, element: context?.element)
+            let terminal = PasteTarget.isTerminal(pid: pid)
+                || (pid.map { isChromiumLike(pid: $0) } == true && DropSpotInfo.isWebTerminal(context?.element))
+            deliverPaste(to: pid, element: context?.element, surface: terminal ? .terminal : .field)
         case .checkFocusAfterMouseUp:
-            checkFocusAfterMouseUp(pid: pid, point: point)
+            checkFocusAfterMouseUp(pid: pid, point: point, downElement: context?.element)
         }
     }
 
@@ -75,7 +79,7 @@ final class DropRouter {
     /// Nothing recognisable was under the cursor at mouse-down. After the release, look again:
     /// web inputs appear late, and native composers often hide under a placeholder label or
     /// expose only their focused text view.
-    private func checkFocusAfterMouseUp(pid: pid_t?, point: CGPoint) {
+    private func checkFocusAfterMouseUp(pid: pid_t?, point: CGPoint, downElement: AXUIElement?) {
         busy = true
         if let pid = pid { prepare(pid: pid) }
         let start = CACurrentMediaTime()
@@ -87,14 +91,19 @@ final class DropRouter {
             }
             // Chromium needs a moment after the switch is flipped; focus needs a moment after the release.
             let settle = pid.map { isChromiumLike(pid: $0) } == true ? 0.2 : 0.1
-            DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in self?.resolveAfterMouseUp(pid: pid, point: point) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + settle) { [weak self] in self?.resolveAfterMouseUp(pid: pid, point: point, downElement: downElement) }
         }
         poll()
     }
 
-    private func resolveAfterMouseUp(pid: pid_t?, point: CGPoint) {
+    private func resolveAfterMouseUp(pid: pid_t?, point: CGPoint, downElement: AXUIElement?) {
+        nonisolated(unsafe) let downElement = downElement
         axQueue.async {
             let spot = DropSpotInfo.resolve(at: point)
+            // What was under the cursor when the button went down, before the click changed anything.
+            let before = downElement.map {
+                DropSpotInfo.canvasFacts(chain: AXNode($0).chain(), bundleID: pid.flatMap { NSRunningApplicationBundleID($0) })
+            } ?? (canvas: false, known: false, document: false)
             var focusedElement: AXUIElement?
             var focusedEditable = false
             var focusedFrame: CGRect?
@@ -108,20 +117,31 @@ final class DropRouter {
                                                     focusedEditable: focusedEditable, focusedFrame: focusedFrame,
                                                     nearbyEditable: false)
             let target = (samePID ? spot.editable : nil) ?? focusedElement
+            // No text input here, but a slide or a board takes a pasted image anywhere.
+            // Whiteboards open a text box where you double-click an empty spot: the image belongs
+            // on the board, so that box is dismissed first.
+            let document = spot.document || before.document
+            let freshEditor = ok && before.canvas && !spot.webTerminal && !document
+            let canvas = freshEditor || (!ok && samePID && DropPolicy.confirmCanvasDrop(
+                point: point, canvasSpot: spot.canvas || before.canvas, knownCanvasApp: spot.knownCanvasApp || before.known,
+                focusedEditable: focusedEditable, focusedFrame: focusedFrame))
+            let surface: PasteTarget.Surface = canvas ? (document ? .document : .canvas) : (ok && samePID ? spot.surface : .field)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     self.busy = false
-                    NSLog("[FairyCursor] after mouse-up: editable=%@ focused=%@ → %@",
-                          spot.editable != nil ? "yes" : "no", focusedEditable ? "yes" : "no", ok ? "paste" : "ignore")
-                    guard ok, self.state.isHolding, !self.state.hiddenForCapture else { return }
-                    self.deliverPaste(to: pid, element: target)
+                    NSLog("[FairyCursor] after mouse-up: editable=%@ focused=%@ canvas=%@ (before: %@) → %@",
+                          spot.editable != nil ? "yes" : "no", focusedEditable ? "yes" : "no", spot.canvas ? "yes" : "no",
+                          before.canvas ? "yes" : "no",
+                          canvas ? (freshEditor ? "close the text box, paste on canvas" : "paste on canvas") : (ok ? "paste" : "ignore"))
+                    guard ok || canvas, self.state.isHolding, !self.state.hiddenForCapture else { return }
+                    self.deliverPaste(to: pid, element: canvas ? nil : target, surface: surface, dismissEditor: freshEditor)
                 }
             }
         }
     }
 
     /// Paste the top card and, once the field has taken it, the rest of the pile after it.
-    private func deliverPaste(to pid: pid_t?, element: AXUIElement?) {
+    private func deliverPaste(to pid: pid_t?, element: AXUIElement?, surface: PasteTarget.Surface, dismissEditor: Bool = false) {
         let ids = state.deliverable.map(\.id)
         guard let first = ids.first, let top = state.card(first) else { return }
         busy = true
@@ -132,24 +152,25 @@ final class DropRouter {
             guard let self = self, self.state.card(first) != nil else { return }
             self.state.deliver(ids: [first], hint: "pasted")
         }
-        PasteTarget.paste(top, to: pid, element: element, clipboard: clipboard, lateAccepted: late) { [weak self] outcome in
+        PasteTarget.paste(top, to: pid, element: element, surface: surface, dismissEditor: dismissEditor,
+                          clipboard: clipboard, lateAccepted: late) { [weak self] outcome in
             guard let self = self else { return }
             switch outcome {
             case .accepted(let delivery):
                 let hint = count == 1 ? (delivery.isPath ? "pasted path" : "pasted") : "pasted \(count)"
                 self.state.deliver(ids: [first], hint: hint)
-                self.pasteRest(Array(ids.dropFirst()), to: pid, clipboard: clipboard, hint: hint)
+                self.pasteRest(Array(ids.dropFirst()), to: pid, surface: surface, clipboard: clipboard, hint: hint)
             case .rejected:
                 self.busy = false
-                self.state.reject(hint: "this field doesn't take images")
+                self.state.reject(hint: top.isMovie ? "this field doesn't take videos" : "this field doesn't take images")
             case .failed:
                 self.busy = false
-                self.state.reject(hint: "couldn't paste · still holding it")
+                self.state.reject(hint: surface == .canvas || surface == .document ? "nothing here took it · still holding it" : "couldn't paste · still holding it")
             }
         }
     }
 
-    private func pasteRest(_ remaining: [UUID], to pid: pid_t?, clipboard: PasteboardSnapshot, hint: String) {
+    private func pasteRest(_ remaining: [UUID], to pid: pid_t?, surface: PasteTarget.Surface, clipboard: PasteboardSnapshot, hint: String) {
         // Let the delivered card leave first.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
             guard let self = self else { return }
@@ -160,11 +181,11 @@ final class DropRouter {
                 self.busy = false
                 return
             }
-            PasteTarget.paste(next, to: pid, element: nil, collapseSelection: false, verify: false, clipboard: clipboard) { [weak self] outcome in
+            PasteTarget.paste(next, to: pid, element: nil, surface: surface, collapseSelection: false, verify: false, clipboard: clipboard) { [weak self] outcome in
                 guard let self = self else { return }
                 if case .accepted = outcome {
                     self.state.deliver(ids: [id], hint: hint)
-                    self.pasteRest(Array(rest.dropFirst()), to: pid, clipboard: clipboard, hint: hint)
+                    self.pasteRest(Array(rest.dropFirst()), to: pid, surface: surface, clipboard: clipboard, hint: hint)
                 } else {
                     self.busy = false
                     self.state.reject(hint: "couldn't paste the rest")

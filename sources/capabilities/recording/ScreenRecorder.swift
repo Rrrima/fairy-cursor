@@ -149,6 +149,11 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         queue.async { self.viewport?.zoom(by: amount) }
     }
 
+    /// Double-tap ⌥: ease back out to the whole display.
+    func resetZoom() {
+        queue.async { self.viewport?.reset() }
+    }
+
     // MARK: - Frames
 
     func stream(_ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer, of type: SCStreamOutputType) {

@@ -1,17 +1,19 @@
 import AppKit
+import AVFoundation
 import FairyCore
 import FairyKit
 
 /// ⌘⇧6 records the display under the cursor to a .mov in the captures folder. While recording,
 /// ⌥ + scroll zooms the video in and out, holding ⌥ moves the zoomed view with the cursor, and
 /// the cursor is drawn larger. ⌘⇧7 and ⌘⇧8 turn the cursor into a pen or a highlighter that
-/// draws on screen, in the video.
+/// draws on screen, in the video. When it stops, the fairy picks the video up like a screenshot:
+/// double-click a text box to share it.
 @MainActor
 public final class RecordingCapability: Capability {
     public static let manifest = CapabilityManifest(
         id: "fairy.screen-recording",
         name: "Screen Recording",
-        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view, \(RecordingInput.penLabel) / \(RecordingInput.highlighterLabel) to draw.",
+        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view, tap ⌥ twice for the whole screen, \(RecordingInput.penLabel) / \(RecordingInput.highlighterLabel) to draw.",
         permissions: [.screenRecording, .accessibility],
         shortcuts: [RecordingInput.shortcutLabel, RecordingInput.penLabel, RecordingInput.highlighterLabel]
     )
@@ -34,6 +36,10 @@ public final class RecordingCapability: Capability {
         let input = RecordingInput()
         input.onToggle = { [weak self] in self?.toggle() }
         input.onZoom = { [weak self] amount in self?.recorder?.zoom(by: amount) }
+        input.onResetZoom = { [weak self] in
+            self?.recorder?.resetZoom()
+            FairyLog.write("⌥⌥ — back to the whole screen")
+        }
         input.isRecording = { [weak self] in self?.state == .recording }
         input.onInkKey = { [weak self] key in self?.ink?.press(key) ?? false }
         input.onOptionChanged = { [weak self] down in
@@ -185,7 +191,7 @@ public final class RecordingCapability: Capability {
                 host?.setExclusive(false, owner: id)
                 if let url = url {
                     FairyLog.write("recording saved: \(url.path)")
-                    if !waitForFile { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    if !waitForFile { self?.handOver(url) }
                 }
             }
             done.signal()
@@ -196,6 +202,24 @@ public final class RecordingCapability: Capability {
             while done.wait(timeout: .now()) == .timedOut, Date() < deadline {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             }
+        }
+    }
+
+    /// Give the finished video to the fairy to carry, with its first frame as the card's picture.
+    /// If no picture can be made, show the file in Finder as before.
+    private func handOver(_ url: URL) {
+        Task { @MainActor [weak self] in
+            let asset = AVURLAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 1200, height: 1200)
+            let duration = (try? await asset.load(.duration)).map(CMTimeGetSeconds) ?? 0
+            let poster = try? await generator.image(at: CMTime(seconds: min(0.3, duration / 2), preferredTimescale: 600)).image
+            guard let host = self?.host, let poster = poster else {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+                return
+            }
+            host.carry(recording: url, poster: poster, scale: 2, duration: duration)
         }
     }
 }

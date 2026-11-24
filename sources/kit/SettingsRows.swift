@@ -4,12 +4,19 @@ import SwiftUI
 // The rows Settings is made of, shared so a capability's section looks like the rest of the
 // window. A capability returns rows from `settingsView()`; the host puts them in its section.
 
-/// Quiet ink, one soft blue for switches that are on.
+/// The website's ink: near-black in three strengths, one pale fill, and a blue kept for what is
+/// live. Switches that are on are ink, not blue.
 public enum SettingsInk {
-    public static let primary = Theme.text
-    public static let secondary = Theme.muted
-    public static let faint = Theme.muted.opacity(0.7)
-    public static let accent = Color(hue: 212 / 360, saturation: 0.60, brightness: 0.80)
+    /// #1d1d1f
+    public static let primary = Color(red: 0x1d / 255, green: 0x1d / 255, blue: 0x1f / 255)
+    /// #6e6e73
+    public static let secondary = Color(red: 0x6e / 255, green: 0x6e / 255, blue: 0x73 / 255)
+    /// #a1a1a6
+    public static let faint = Color(red: 0xa1 / 255, green: 0xa1 / 255, blue: 0xa6 / 255)
+    /// #f2f2f5: keys, buttons, and the patch a capability's own options sit on.
+    public static let fill = Color(red: 0xf2 / 255, green: 0xf2 / 255, blue: 0xf5 / 255)
+    /// hsl(212, 72%, 56%), the recording blue.
+    public static let accent = Color(red: 0.243, green: 0.539, blue: 0.877)
 }
 
 /// A title, an optional explanation under it, and a switch on the right.
@@ -25,12 +32,13 @@ public struct ToggleRow: View {
     }
 
     public var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        HStack(alignment: .firstTextBaseline, spacing: 14) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(Theme.font(13.5, weight: .medium)).foregroundStyle(SettingsInk.primary)
+                Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(SettingsInk.primary)
                 if let detail = detail {
                     Text(detail)
-                        .font(Theme.font(12))
+                        .font(.system(size: 12))
+                        .lineSpacing(1.5)
                         .foregroundStyle(SettingsInk.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .animation(.easeOut(duration: 0.2), value: detail)
@@ -41,12 +49,12 @@ public struct ToggleRow: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .tint(SettingsInk.accent)
+                .tint(SettingsInk.primary)
         }
     }
 }
 
-/// A folder the user picks: its title, Change… and Open, then the path.
+/// A folder the user picks: its title and path, with Change… and Open beside them.
 public struct FolderRow: View {
     let title: String
     let folder: URL
@@ -61,27 +69,30 @@ public struct FolderRow: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 12) {
-                Text(title).font(Theme.font(13.5, weight: .medium)).foregroundStyle(SettingsInk.primary)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(SettingsInk.primary)
+                    Text(Folders.displayPath(folder))
+                        .font(.system(size: 12))
+                        .foregroundStyle(SettingsInk.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .help(folder.path)
+                }
                 Spacer(minLength: 8)
                 QuietButton(title: "Change…", action: choose)
                 QuietButton(title: "Open", action: { Folders.open(folder) })
             }
-            Text(Folders.displayPath(folder))
-                .font(Theme.font(12))
-                .foregroundStyle(SettingsInk.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .help(folder.path)
             if let detail = detail {
-                Text(detail).font(Theme.font(12)).foregroundStyle(SettingsInk.faint)
+                Text(detail).font(.system(size: 12)).foregroundStyle(SettingsInk.faint)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 }
 
-/// A small glass pill: quiet at rest, it lifts and denses a little on hover.
+/// A small pale pill: quiet at rest, a shade darker under the pointer.
 public struct QuietButton: View {
     let title: String
     let action: () -> Void
@@ -95,12 +106,12 @@ public struct QuietButton: View {
     public var body: some View {
         Button(action: action) {
             Text(title)
-                .font(Theme.font(12, weight: .medium))
-                .foregroundStyle(hovering ? SettingsInk.primary : SettingsInk.secondary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(SettingsInk.primary)
                 .padding(.horizontal, 11)
-                .padding(.vertical, 4)
-                .glassEffect(.regular.tint(.white.opacity(hovering ? 0.45 : 0.25)).interactive(), in: Capsule())
-                .offset(y: hovering ? -1 : 0)
+                .padding(.vertical, 4.5)
+                .background(Capsule().fill(hovering ? Color(white: 0.89) : SettingsInk.fill))
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
