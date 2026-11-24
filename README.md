@@ -6,7 +6,7 @@ needs macos 26.
 
 ## download
 
-grab `fairy-cursor.zip` from the [latest release](https://github.com/Rrrima/fairy-cursor/releases/latest), unzip it and drag **fairy cursor** into `/Applications`.
+grab [`fairy-cursor.zip`](https://github.com/Rrrima/fairy-cursor-site/releases/latest/download/fairy-cursor.zip) (or visit [the website](https://rrrima.github.io/fairy-cursor-site/)), unzip it and drag **fairy cursor** into `/Applications`.
 
 it's signed and notarized, so it opens like any other app.
 
