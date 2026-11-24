@@ -136,3 +136,64 @@ final class PastePolicyTests: XCTestCase {
         XCTAssertEqual(PastePolicy.shellQuoted("/tmp/a(1).png"), "'/tmp/a(1).png' ")
     }
 }
+
+final class TerminalClipboardTests: XCTestCase {
+    private let settle = PastePolicy.TerminalSettle()
+
+    func testWaitsWhileAThirdClickIsHeld() {
+        XCTAssertEqual(settle.step(elapsed: 0.3, buttonsDown: true, sinceMouseUp: 0.3, sinceClipboardChange: nil), .wait)
+    }
+
+    func testWaitsForTheCopyOnSelectAfterTheLastMouseUp() {
+        // iTerm copies the selection ~10 ms after each mouse-up.
+        XCTAssertEqual(settle.step(elapsed: 0.05, buttonsDown: false, sinceMouseUp: 0.05, sinceClipboardChange: nil), .wait)
+        XCTAssertEqual(settle.step(elapsed: 0.2, buttonsDown: false, sinceMouseUp: 0.2, sinceClipboardChange: nil), .proceed)
+    }
+
+    func testAThirdClickRestartsTheWait() {
+        XCTAssertEqual(settle.step(elapsed: 0.5, buttonsDown: false, sinceMouseUp: 0.02, sinceClipboardChange: nil), .wait)
+    }
+
+    func testWaitsWhileTheClipboardIsStillChanging() {
+        XCTAssertEqual(settle.step(elapsed: 0.3, buttonsDown: false, sinceMouseUp: 0.3, sinceClipboardChange: 0.02), .wait)
+        XCTAssertEqual(settle.step(elapsed: 0.4, buttonsDown: false, sinceMouseUp: 0.4, sinceClipboardChange: 0.12), .proceed)
+    }
+
+    func testNeverWaitsForever() {
+        XCTAssertEqual(settle.step(elapsed: 1.5, buttonsDown: true, sinceMouseUp: 0, sinceClipboardChange: 0), .proceed)
+    }
+
+    func testAnOverwriteBeforeThePasteIsReadIsUndone() {
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 0.02, reads: 0, rewrites: 0, isTerminal: true), .rewrite)
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 0.02, reads: 0, rewrites: 0, isTerminal: false), .rewrite)
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 0.02, reads: 0, rewrites: PastePolicy.maxRewrites, isTerminal: true), .leave,
+                       "don't fight another writer forever")
+    }
+
+    func testASelectionCopiedRightAfterATerminalPasteDoesNotBecomeTheClipboard() {
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 0.2, reads: 2, rewrites: 0, isTerminal: true), .adopt)
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 0.2, reads: 2, rewrites: 0, isTerminal: false), .leave)
+    }
+
+    func testALaterCopyIsTheUsersOwn() {
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 1.5, reads: 2, rewrites: 0, isTerminal: true), .leave)
+        XCTAssertEqual(PastePolicy.overwriteStep(sinceSend: 1.5, reads: 0, rewrites: 0, isTerminal: true), .leave)
+    }
+
+    func testTheClipboardFromBeforeTheClickIsTheOneRestored() {
+        // Unchanged since the first mouse-down: same thing either way.
+        XCTAssertTrue(PastePolicy.useRememberedClipboard(rememberedCount: 7, currentCount: 7, age: 30))
+        // Changed during the double-click: that was copy-on-select.
+        XCTAssertTrue(PastePolicy.useRememberedClipboard(rememberedCount: 7, currentCount: 8, age: 0.3))
+        // Changed long after the last click we saw: the user copied something.
+        XCTAssertFalse(PastePolicy.useRememberedClipboard(rememberedCount: 7, currentCount: 8, age: 10))
+        XCTAssertFalse(PastePolicy.useRememberedClipboard(rememberedCount: nil, currentCount: 8, age: nil))
+    }
+
+    func testACanvasDropGivesUpSooner() {
+        let rules = PastePolicy.OutcomeRules(hasProbe: false, isCanvas: true)
+        XCTAssertEqual(rules.evaluate(elapsed: 0.5, reads: 0, probeChanged: false), .pending)
+        XCTAssertEqual(rules.evaluate(elapsed: 1.0, reads: 0, probeChanged: false), .failed)
+        XCTAssertEqual(rules.evaluate(elapsed: 0.2, reads: 1, probeChanged: false), .accepted)
+    }
+}

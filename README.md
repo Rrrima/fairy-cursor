@@ -8,7 +8,7 @@ needs macos 26.
 
 grab `fairy-cursor.zip` from the [latest release](https://github.com/Rrrima/fairy-cursor/releases/latest), unzip it and drag **fairy cursor** into `/Applications`.
 
-the first time you open it, macos may say it can't check the app. open **system settings → privacy & security**, scroll down and click **open anyway**.
+it's signed and notarized, so it opens like any other app.
 
 ## build from source
 
@@ -43,6 +43,8 @@ after you rebuild, macos may forget these. turn them off and on again.
 
 - `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` take a screenshot. the fairy picks it up
 - double-click a text box to paste it
+- double-click a slide or a board (keynote, google slides, figma, excalidraw…) to drop it there
+- double-click in a google doc to drop it after the word you clicked
 - double-click the desktop or a finder window to save it as a png
 - shake to let the top one go. keep shaking to drop them all
 - hold `⌥` on empty space, then click, to start a sticky note
@@ -54,8 +56,11 @@ dropped one by accident? menu bar → restore last screenshot. your notes are un
 - `⌘ ⇧ 6` starts recording the screen your cursor is on. press it again to stop
 - while recording, hold `⌥` and scroll to zoom in and out
 - hold `⌥` and move the cursor to move the zoomed view with it. let go and the view stays put
+- tap `⌥` twice to go back to the whole screen
 - the cursor gets bigger while you record, and goes back when you stop
-- the recording is saved next to your screenshots and shown in finder
+- `⌘ ⇧ 7` turns the cursor into a pen, `⌘ ⇧ 8` into a highlighter. press the other one to switch, the same one again to go back to the cursor. the ink is in the video
+- while drawing: `⌘ Z` takes back the last stroke, `⌫` clears the screen, `esc` puts the pen down (and the ink fades away)
+- when you stop, the fairy picks the recording up like a screenshot: double-click a text box to share it. the file is saved next to your screenshots
 
 the blue outline shows what's being recorded; it isn't in the video. on a mac with a touch bar, `⌘ ⇧ 6` normally screenshots the touch bar; the fairy uses it for recording instead.
 
@@ -89,7 +94,8 @@ the fairy's own gestures live in this repo:
 - shake: `sources/core/ShakeDetector.swift` (how far, how fast, how many times)
 - what a double-click does where: `sources/core/DropPolicy.swift`, `sources/core/PastePolicy.swift`
 - hold `⌥` for a note: `sources/capabilities/notes/NoteSummoner.swift`
-- the recording shortcut and `⌥` + scroll: `sources/capabilities/recording/RecordingInput.swift`
+- the recording shortcuts, `⌥` + scroll and the pen keys: `sources/capabilities/recording/RecordingInput.swift`
+- the pen and highlighter: `sources/capabilities/recording/InkOverlay.swift` (look) and `sources/core/Ink.swift` (behaviour)
 - how ausm is wired in: `sources/capabilities/screenshots/ScreenshotsCapability.swift` and `startCursorMonitor()` in `sources/app/AppDelegate.swift`
 
 ## capabilities
@@ -102,7 +108,7 @@ the fairy itself does three things: it follows your cursor, carries screenshots,
 |---|---|---|---|---|
 | screenshots | `fairy.screenshots` | takes over macos screenshots, so the fairy carries each one instead of a file on the desktop | `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` | screen recording |
 | notes | `fairy.notes` | sticky notes saved as markdown; double-click one to drop screenshots into it | hold `⌥`, click | accessibility |
-| screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom | `⌘ ⇧ 6` | screen recording, accessibility |
+| screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom and a pen and highlighter | `⌘ ⇧ 6`, `⌘ ⇧ 7`, `⌘ ⇧ 8` | screen recording, accessibility |
 
 switch one off and it gives back everything it took over: screenshots go back to macos, `⌘ ⇧ 6` back to the system, and a recording in progress is saved first. the menu and the permission prompts only show what the switched-on capabilities need.
 

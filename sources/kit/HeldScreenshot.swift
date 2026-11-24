@@ -1,6 +1,7 @@
 import AppKit
 
-/// One screenshot the fairy is carrying.
+/// One card the fairy is carrying: a screenshot, or a screen recording (then `image` is its
+/// poster frame and `movie` the file it stands for).
 public struct HeldScreenshot: Identifiable {
     public let id = UUID()
     public let image: CGImage
@@ -11,8 +12,15 @@ public struct HeldScreenshot: Identifiable {
     public let kept: Bool
     /// Small random tilt so stacked cards read as separate sheets.
     public let tilt: Double
+    /// A recording: the saved video file. Delivering the card delivers this file.
+    public let movie: URL?
+    /// How long the recording runs, for the card's badge.
+    public let duration: TimeInterval?
 
-    public init(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false, tilt: Double = 0) {
+    public init(image: CGImage, scale: CGFloat, capturedAt: Date = Date(), kept: Bool = false, tilt: Double = 0,
+                movie: URL? = nil, duration: TimeInterval? = nil) {
+        self.movie = movie
+        self.duration = duration
         self.image = image
         self.scale = scale
         self.capturedAt = capturedAt
@@ -20,6 +28,8 @@ public struct HeldScreenshot: Identifiable {
         self.tilt = tilt
         self.nsImage = NSImage(cgImage: image, size: NSSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale))
     }
+
+    public var isMovie: Bool { movie != nil }
 
     public var pointSize: CGSize { CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale) }
 

@@ -6,6 +6,7 @@ import Foundation
 enum Keys {
     static let rightArrow: CGKeyCode = 124
     static let v: CGKeyCode = 9
+    static let escape: CGKeyCode = 53
 
     /// Device-dependent "left ⌘" bit (NX_DEVICELCMDKEYMASK). Some apps look at it, not just the
     /// device-independent command flag.

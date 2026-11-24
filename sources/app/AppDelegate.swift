@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let settings = AppSettings.shared
     private let capabilities = CapabilityRegistry()
     private lazy var settingsWindow = SettingsWindowController(model: SettingsModel(capabilities: capabilities))
+    private lazy var guideWindow = GuideWindowController(capabilities: capabilities)
 
     private var cursorMonitor: CursorMonitor!
     /// Shake discards the top card; shaking on past it discards the rest. Gated off while the
@@ -58,6 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
         }
+        // A new user's first run: say what the fairy does and what it needs.
+        guideWindow.showOnFirstLaunch()
         log("ready — accessibility=\(Permissions.accessibility) screenRecording=\(Permissions.screenRecording)")
     }
 
@@ -115,6 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 break
             }
             scheduleHoverHint(at: CGPoint(x: x, y: y))
+
+        case "CLICK":
+            // Remember the clipboard before a possible double-click: a terminal copies the
+            // clicked word on mouse-up, and that must not be taken for the user's clipboard.
+            guard state.isHolding else { return }
+            DispatchQueue.main.async { MainActor.assumeIsolated { PasteTarget.rememberClipboard() } }
 
         case "DOUBLE_CLICK":
             guard state.isHolding else { return }
@@ -179,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             state.setHoverHint(nil)
         } else if spot.finderDropSpot {
             state.setHoverHint("double-click to save here")
-        } else if spot.editable != nil {
+        } else if spot.editable != nil || spot.canvas {
             state.setHoverHint("double-click to paste")
         } else {
             state.setHoverHint(nil)
@@ -251,6 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for permission in Permission.allCases where capabilities.neededPermissions.contains(permission) && !permission.isGranted {
             menu.addItem(ActionMenuItem("Allow \(permission.title)…") { permission.openSettings() })
         }
+        menu.addItem(ActionMenuItem("Welcome Guide…") { [weak self] in self?.guideWindow.show() })
         menu.addItem(ActionMenuItem("Settings…") { [weak self] in self?.settingsWindow.show() })
         menu.addItem(NSMenuItem(title: "Quit Fairy Cursor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
     }
@@ -272,6 +282,12 @@ extension AppDelegate: FairyHost {
         state.hold(image: image, scale: scale, capturedAt: capturedAt, kept: kept)
         shake.captured()
         log("holding \(state.stack.count)")
+    }
+
+    func carry(recording url: URL, poster: CGImage, scale: CGFloat, duration: TimeInterval) {
+        state.hold(image: poster, scale: scale, kept: true, movie: url, duration: duration)
+        shake.captured()
+        log("holding \(state.stack.count) (recording)")
     }
 
     func keepForRestore(_ image: CGImage, scale: CGFloat, capturedAt: Date) {

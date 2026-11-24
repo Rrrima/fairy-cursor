@@ -1,4 +1,5 @@
 import AppKit
+import FairyCore
 import FairyKit
 import SwiftUI
 
@@ -47,7 +48,7 @@ final class RecordingFrame {
 
         // The pill sits just under the menu bar, centred.
         let pill = NSHostingView(rootView: RecordingPill(model: model))
-        pill.frame = NSRect(x: 0, y: 0, width: 280, height: 44)
+        pill.frame = NSRect(x: 0, y: 0, width: 640, height: 44)
         let menuBar = frame.maxY - (screen?.visibleFrame.maxY ?? frame.maxY)
         pill.frame.origin = NSPoint(x: (frame.width - pill.frame.width) / 2, y: frame.height - menuBar - pill.frame.height - 8)
         root.addSubview(pill)
@@ -64,6 +65,11 @@ final class RecordingFrame {
                 self.model.elapsed = Int(Date().timeIntervalSince(self.started))
             }
         }
+    }
+
+    /// The pill says what the cursor draws with, and the keys that go with it.
+    func setTool(_ tool: InkTool?) {
+        model.tool = tool
     }
 
     func close() {
@@ -86,9 +92,11 @@ final class RecordingFrame {
 @MainActor
 private final class PillModel: ObservableObject {
     @Published var elapsed = 0
+    @Published var tool: InkTool?
 }
 
-/// "● 0:42 · ⌥ scroll to zoom · ⌘⇧6 to stop" on one glass pill; the dot breathes.
+/// "● 0:42 · ⌥ scroll to zoom · ⌘⇧7 pen · ⌘⇧6 to stop" on one glass pill; the dot breathes.
+/// With a pen in hand it names the tool and the keys for it instead.
 private struct RecordingPill: View {
     @ObservedObject var model: PillModel
     @State private var breathe = false
@@ -104,14 +112,29 @@ private struct RecordingPill: View {
                 .font(Theme.font(12.5, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.text)
-            Text("⌥ scroll to zoom · \(RecordingInput.shortcutLabel) to stop")
-                .font(Theme.font(11.5))
-                .foregroundStyle(Theme.muted)
+            if let tool = model.tool {
+                Text(tool == .pen ? "pen" : "highlighter")
+                    .font(Theme.font(12, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Text(hints(for: tool))
+                    .font(Theme.font(11.5))
+                    .foregroundStyle(Theme.muted)
+            } else {
+                Text("⌥ scroll to zoom · \(RecordingInput.penLabel) pen · \(RecordingInput.highlighterLabel) highlighter · \(RecordingInput.shortcutLabel) to stop")
+                    .font(Theme.font(11.5))
+                    .foregroundStyle(Theme.muted)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .glassEffect(.regular.tint(.white.opacity(0.3)), in: Capsule())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { breathe = true }
+        .animation(.easeOut(duration: 0.2), value: model.tool)
+    }
+
+    private func hints(for tool: InkTool) -> String {
+        let other = tool == .pen ? "\(RecordingInput.highlighterLabel) highlighter" : "\(RecordingInput.penLabel) pen"
+        return "\(other) · ⌘Z undo · ⌫ clear · esc done"
     }
 }

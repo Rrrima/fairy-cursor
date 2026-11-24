@@ -1,17 +1,21 @@
 import AppKit
+import AVFoundation
+import FairyCore
 import FairyKit
 
 /// ⌘⇧6 records the display under the cursor to a .mov in the captures folder. While recording,
 /// ⌥ + scroll zooms the video in and out, holding ⌥ moves the zoomed view with the cursor, and
-/// the cursor is drawn larger.
+/// the cursor is drawn larger. ⌘⇧7 and ⌘⇧8 turn the cursor into a pen or a highlighter that
+/// draws on screen, in the video. When it stops, the fairy picks the video up like a screenshot:
+/// double-click a text box to share it.
 @MainActor
 public final class RecordingCapability: Capability {
     public static let manifest = CapabilityManifest(
         id: "fairy.screen-recording",
         name: "Screen Recording",
-        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view.",
+        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view, tap ⌥ twice for the whole screen, \(RecordingInput.penLabel) / \(RecordingInput.highlighterLabel) to draw.",
         permissions: [.screenRecording, .accessibility],
-        shortcuts: [RecordingInput.shortcutLabel]
+        shortcuts: [RecordingInput.shortcutLabel, RecordingInput.penLabel, RecordingInput.highlighterLabel]
     )
 
     private enum State { case idle, starting, recording, stopping }
@@ -20,6 +24,7 @@ public final class RecordingCapability: Capability {
     private var input: RecordingInput?
     private var recorder: ScreenRecorder?
     private var frame: RecordingFrame?
+    private var ink: InkOverlay?
     private var state: State = .idle
     private var id: String { Self.manifest.id }
 
@@ -31,7 +36,12 @@ public final class RecordingCapability: Capability {
         let input = RecordingInput()
         input.onToggle = { [weak self] in self?.toggle() }
         input.onZoom = { [weak self] amount in self?.recorder?.zoom(by: amount) }
+        input.onResetZoom = { [weak self] in
+            self?.recorder?.resetZoom()
+            FairyLog.write("⌥⌥ — back to the whole screen")
+        }
         input.isRecording = { [weak self] in self?.state == .recording }
+        input.onInkKey = { [weak self] key in self?.ink?.press(key) ?? false }
         input.onOptionChanged = { [weak self] down in
             guard let recorder = self?.recorder else { return }
             recorder.setFollowing(down)
@@ -60,7 +70,15 @@ public final class RecordingCapability: Capability {
         case .recording: title = "Stop Recording (\(RecordingInput.shortcutLabel))"
         case .stopping: title = "Saving Recording…"
         }
-        return [ActionMenuItem(title, enabled: state == .idle || state == .recording) { [weak self] in self?.toggle() }]
+        var items: [NSMenuItem] = [ActionMenuItem(title, enabled: state == .idle || state == .recording) { [weak self] in self?.toggle() }]
+        if state == .recording, let ink = ink {
+            for (tool, label) in [(InkTool.pen, "Pen (\(RecordingInput.penLabel))"), (.highlighter, "Highlighter (\(RecordingInput.highlighterLabel))")] {
+                let item = ActionMenuItem(label) { [weak ink] in _ = ink?.press(tool == .pen ? .pen : .highlighter) }
+                item.state = ink.tool == tool ? .on : .off
+                items.append(item)
+            }
+        }
+        return items
     }
 
     // MARK: - Recording
@@ -114,6 +132,7 @@ public final class RecordingCapability: Capability {
                 guard self.state == .starting else { return }
                 self.state = .recording
                 CursorScale.enlarge()
+                self.showInk(displayID: displayID)
             } catch {
                 FairyLog.write("recording failed to start: \(error)")
                 self.frame?.close()
@@ -125,6 +144,30 @@ public final class RecordingCapability: Capability {
         }
     }
 
+    // MARK: - Pen
+
+    private func showInk(displayID: CGDirectDisplayID) {
+        let ink = InkOverlay(displayID: displayID)
+        ink.onToolChanged = { [weak self] tool in
+            guard let self = self else { return }
+            self.frame?.setTool(tool)
+            // While drawing, the fairy steps aside: it shouldn't follow the pen around the
+            // video, and scribbling isn't a shake.
+            self.host?.setCaptureUIVisible(tool != nil, owner: self.inkOwner)
+        }
+        ink.show()
+        self.ink = ink
+    }
+
+    private func closeInk() {
+        ink?.close()
+        ink = nil
+        frame?.setTool(nil)
+        host?.setCaptureUIVisible(false, owner: inkOwner)
+    }
+
+    private var inkOwner: String { id + ".ink" }
+
     /// `waitForFile`: the app is quitting (or the capability is being switched off), so block
     /// briefly until the file is finalised and don't open Finder.
     private func finish(waitForFile: Bool) {
@@ -135,6 +178,7 @@ public final class RecordingCapability: Capability {
             return
         }
         state = .stopping
+        closeInk()
         CursorScale.restore()
         frame?.close()
         frame = nil
@@ -147,7 +191,7 @@ public final class RecordingCapability: Capability {
                 host?.setExclusive(false, owner: id)
                 if let url = url {
                     FairyLog.write("recording saved: \(url.path)")
-                    if !waitForFile { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                    if !waitForFile { self?.handOver(url) }
                 }
             }
             done.signal()
@@ -158,6 +202,24 @@ public final class RecordingCapability: Capability {
             while done.wait(timeout: .now()) == .timedOut, Date() < deadline {
                 RunLoop.main.run(until: Date().addingTimeInterval(0.05))
             }
+        }
+    }
+
+    /// Give the finished video to the fairy to carry, with its first frame as the card's picture.
+    /// If no picture can be made, show the file in Finder as before.
+    private func handOver(_ url: URL) {
+        Task { @MainActor [weak self] in
+            let asset = AVURLAsset(url: url)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 1200, height: 1200)
+            let duration = (try? await asset.load(.duration)).map(CMTimeGetSeconds) ?? 0
+            let poster = try? await generator.image(at: CMTime(seconds: min(0.3, duration / 2), preferredTimescale: 600)).image
+            guard let host = self?.host, let poster = poster else {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+                return
+            }
+            host.carry(recording: url, poster: poster, scale: 2, duration: duration)
         }
     }
 }

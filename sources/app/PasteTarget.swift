@@ -10,16 +10,21 @@ import FairyKit
 enum PasteTarget {
     /// Terminal emulators paste text only, so for them the screenshot is written to disk and its
     /// path is pasted (Claude Code and most CLIs read image files from a path).
-    private static let terminalBundleIDs: Set<String> = [
+    private nonisolated static let terminalBundleIDs: Set<String> = [
         "com.googlecode.iterm2", "com.apple.Terminal", "dev.warp.Warp-Stable", "dev.warp.Warp",
         "com.github.wez.wezterm", "net.kovidgoyal.kitty", "org.alacritty", "io.alacritty",
         "com.mitchellh.ghostty", "co.zeit.hyper", "com.termius-dmg.mac", "app.tabby",
     ]
 
-    static func isTerminal(pid: pid_t?) -> Bool {
+    nonisolated static func isTerminal(pid: pid_t?) -> Bool {
         guard let pid = pid, let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier else { return false }
         return terminalBundleIDs.contains(bundle)
     }
+
+    /// What the paste goes into: a text input, a terminal (text only, so the file's path is
+    /// pasted) or a canvas (no text input; the app takes the image wherever it is).
+    /// `document`: a text document with no text input to find (Google Docs draws its own page).
+    enum Surface { case field, terminal, canvas, document }
 
     /// Folder where screenshots pasted into terminals are kept (they must outlive the paste).
     static let pastedFolder: URL = {
@@ -112,7 +117,29 @@ enum PasteTarget {
     /// The user's clipboard as it is now. While an earlier paste still has a screenshot on the
     /// pasteboard (its restore is pending), that paste's copy is the user's real clipboard.
     static func currentClipboard() -> PasteboardSnapshot {
-        PasteJob.pendingRestore ?? PasteboardSnapshot(NSPasteboard.general)
+        if let pending = PasteJob.pendingRestore { return pending }
+        let pasteboard = NSPasteboard.general
+        if let memory = remembered,
+           PastePolicy.useRememberedClipboard(rememberedCount: memory.count, currentCount: pasteboard.changeCount,
+                                              age: CACurrentMediaTime() - memory.at) {
+            return memory.snapshot
+        }
+        return PasteboardSnapshot(pasteboard)
+    }
+
+    private static var remembered: (snapshot: PasteboardSnapshot, count: Int, at: CFTimeInterval)?
+
+    /// Called on every click while holding: keep a copy of the clipboard as it is before the
+    /// click's own side effects (a terminal copies the selected word on mouse-up).
+    static func rememberClipboard() {
+        guard PasteJob.pendingRestore == nil else { return }
+        let pasteboard = NSPasteboard.general
+        let count = pasteboard.changeCount
+        if let memory = remembered, memory.count == count {
+            remembered = (memory.snapshot, count, CACurrentMediaTime())
+        } else {
+            remembered = (PasteboardSnapshot(pasteboard), count, CACurrentMediaTime())
+        }
     }
 
     nonisolated static let probeQueue = DispatchQueue(label: "fairy.paste-probe", qos: .userInitiated)
@@ -124,15 +151,22 @@ enum PasteTarget {
     ///     a pile skip it, since the first one already proved the field takes images.
     ///   - clipboard: the user's clipboard to restore afterwards; a pile passes the copy taken
     ///     before its first paste, so the screenshots never end up as "your" clipboard.
-    static func paste(_ screenshot: HeldScreenshot, to pid: pid_t?, element: AXUIElement?,
-                      collapseSelection: Bool = true, verify: Bool = true,
+    static func paste(_ screenshot: HeldScreenshot, to pid: pid_t?, element: AXUIElement?, surface: Surface = .field,
+                      dismissEditor: Bool = false, collapseSelection: Bool = true, verify: Bool = true,
                       clipboard: PasteboardSnapshot? = nil,
                       lateAccepted: (() -> Void)? = nil,
                       completion: @escaping (Outcome) -> Void) {
-        let job = PasteJob(screenshot: screenshot, pid: pid, element: element, collapseSelection: collapseSelection,
-                           verify: verify, snapshot: clipboard ?? currentClipboard(),
+        // On a canvas there is no selection to collapse (→ would nudge the selected shape) and
+        // no field to fingerprint.
+        // A page-drawn document has a selection (the double-clicked word) but no field either.
+        let canvas = surface == .canvas
+        let unprobed = canvas || surface == .document
+        let job = PasteJob(screenshot: screenshot, pid: pid, element: element, surface: surface,
+                           collapseSelection: collapseSelection && !canvas,
+                           verify: verify && !unprobed, snapshot: clipboard ?? currentClipboard(),
                            completion: completion)
         job.lateAccepted = lateAccepted
+        job.dismissEditor = dismissEditor
         job.start()
     }
 }
@@ -151,6 +185,7 @@ final class PasteJob {
     private let screenshot: HeldScreenshot
     private let pid: pid_t?
     private let element: AXUIElement?
+    private let surface: PasteTarget.Surface
     private let collapseSelection: Bool
     private let verify: Bool
     private let snapshot: PasteboardSnapshot
@@ -159,6 +194,8 @@ final class PasteJob {
     /// busy app handled the ⌘V late, and the screenshot did land.
     var lateAccepted: (() -> Void)?
     private var failedWithReads: Int?
+    /// The double-click opened a text box on a canvas: press esc to close it before pasting.
+    var dismissEditor = false
 
     /// The clipboard a running paste will put back, if one is still waiting to.
     static var pendingRestore: PasteboardSnapshot? {
@@ -177,11 +214,13 @@ final class PasteJob {
     private var sentAt: CFTimeInterval = 0
     private var restoreDone = false
 
-    init(screenshot: HeldScreenshot, pid: pid_t?, element: AXUIElement?, collapseSelection: Bool, verify: Bool,
+    init(screenshot: HeldScreenshot, pid: pid_t?, element: AXUIElement?, surface: PasteTarget.Surface,
+         collapseSelection: Bool, verify: Bool,
          snapshot: PasteboardSnapshot, completion: @escaping (PasteTarget.Outcome) -> Void) {
         self.screenshot = screenshot
         self.pid = pid
         self.element = element
+        self.surface = surface
         self.collapseSelection = collapseSelection
         self.verify = verify
         self.snapshot = snapshot
@@ -205,13 +244,23 @@ final class PasteJob {
     }
 
     func start() {
-        guard let png = screenshot.pngData(), let tiff = screenshot.tiffData() else {
+        terminal = surface == .terminal || PasteTarget.isTerminal(pid: pid)
+        var payload: [NSPasteboard.PasteboardType: Data]
+        if let movie = screenshot.movie {
+            // A recording goes as the file itself, like a file copied in Finder: web composers
+            // (X, Slack, Gmail) receive it as an attached video; terminals get its path.
+            payload = [.fileURL: Data(movie.absoluteString.utf8)]
+            if terminal {
+                delivery = .path(movie)
+                payload[.string] = Data(PastePolicy.shellQuoted(movie.path).utf8)
+            }
+        } else if let png = screenshot.pngData(), let tiff = screenshot.tiffData() {
+            payload = [.png: png, .tiff: tiff]
+        } else {
             finish(.failed)
             return
         }
-        terminal = PasteTarget.isTerminal(pid: pid)
-        var payload: [NSPasteboard.PasteboardType: Data] = [.png: png, .tiff: tiff]
-        if terminal {
+        if terminal && !screenshot.isMovie {
             try? FileManager.default.createDirectory(at: PasteTarget.pastedFolder, withIntermediateDirectories: true)
             guard let url = FinderTarget.save(screenshot, into: PasteTarget.pastedFolder) else {
                 finish(.failed)
@@ -246,12 +295,59 @@ final class PasteJob {
 
     private func waitForMouseUp(since start: CFTimeInterval) {
         let elapsed = now - start
-        let step = PastePolicy.mouseUpStep(elapsed: elapsed, buttonsDown: NSEvent.pressedMouseButtons != 0)
+        let buttonsDown = NSEvent.pressedMouseButtons != 0
+        if terminal {
+            // Wait until the clicking is over and the terminal's copy-on-select has landed.
+            let count = NSPasteboard.general.changeCount
+            if let seen = settleCount, seen != count { settleChangedAt = now }
+            settleCount = count
+            let sinceUp = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseUp)
+            let step = PastePolicy.TerminalSettle().step(elapsed: elapsed, buttonsDown: buttonsDown, sinceMouseUp: sinceUp,
+                                                         sinceClipboardChange: settleChangedAt.map { now - $0 })
+            if step == .wait {
+                after(PastePolicy.mouseUpPollInterval) { self.waitForMouseUp(since: start) }
+                return
+            }
+            bringTargetForward(since: now, asked: false)
+            return
+        }
+        let step = PastePolicy.mouseUpStep(elapsed: elapsed, buttonsDown: buttonsDown)
         if step == .wait || (!probeReady && elapsed < PastePolicy.mouseUpTimeout) {
             after(PastePolicy.mouseUpPollInterval) { self.waitForMouseUp(since: start) }
             return
         }
         after(PastePolicy.afterMouseUpDelay) { self.bringTargetForward(since: self.now, asked: false) }
+    }
+
+    private var settleCount: Int?
+    private var settleChangedAt: CFTimeInterval?
+    private var rewrites = 0
+    private var guarding = true
+
+    /// Someone else wrote the clipboard after we did. Before the ⌘V is served that would paste
+    /// their text instead of the screenshot, so put it back; right after, in a terminal, it is
+    /// the click's own copy-on-select and the user's clipboard is still restored.
+    private func reconcileClipboard() {
+        guard guarding, sentAt > 0, !restoreDone, let promise = promise else { return }
+        let pasteboard = NSPasteboard.general
+        guard pasteboard.changeCount != changeCount else { return }
+        switch PastePolicy.overwriteStep(sinceSend: now - sentAt, reads: promise.reads, rewrites: rewrites, isTerminal: terminal) {
+        case .rewrite:
+            rewrites += 1
+            changeCount = promise.write(to: pasteboard)
+            NSLog("[FairyCursor] paste: clipboard was overwritten before the paste was read → wrote the screenshot again")
+        case .adopt:
+            changeCount = pasteboard.changeCount
+            NSLog("[FairyCursor] paste: selection copied after the paste → still restoring the clipboard")
+        case .leave:
+            guarding = false
+        }
+    }
+
+    private func guardClipboard() {
+        guard guarding, !restoreDone, promise != nil, now - sentAt < PastePolicy.overwriteWindow else { return }
+        reconcileClipboard()
+        after(0.01) { self.guardClipboard() }
     }
 
     private func bringTargetForward(since start: CFTimeInterval, asked: Bool) {
@@ -271,7 +367,8 @@ final class PasteJob {
         let route = PastePolicy.keyRoute(target: pid, frontmost: frontmostPID)
         // In a shell, → can accept an autosuggestion, so skip it for terminals.
         if !terminal && collapseSelection { Keys.press(Keys.rightArrow, route: route) }
-        after(PastePolicy.collapseToPasteDelay) {
+        if dismissEditor { Keys.press(Keys.escape, route: route) }
+        after(dismissEditor ? PastePolicy.dismissToPasteDelay : PastePolicy.collapseToPasteDelay) {
             // Write the pasteboard only now: terminals with copy-on-select (iTerm) copy the
             // double-clicked word on mouse-up, which would replace an earlier write.
             guard let promise = self.promise else { return }
@@ -281,6 +378,7 @@ final class PasteJob {
             self.sentAt = self.now
             NSLog("[FairyCursor] paste: sent ⌘V via %@ (target pid %d, %@)",
                   route == .session ? "session" : "pid", self.pid ?? -1, self.terminal ? "path" : "image")
+            self.guardClipboard()
             self.pollOutcome()
             self.pollRestore()
         }
@@ -289,7 +387,7 @@ final class PasteJob {
     private func pollOutcome() {
         guard completion != nil, let promise = promise else { return }
         let hasProbe = probe.map { !$0.isMultiline } ?? false
-        let rules = PastePolicy.OutcomeRules(hasProbe: hasProbe)
+        let rules = PastePolicy.OutcomeRules(hasProbe: hasProbe, isCanvas: surface == .canvas || surface == .document)
         let elapsed = now - sentAt
         switch rules.evaluate(elapsed: elapsed, reads: promise.reads, probeChanged: probeChanged) {
         case .accepted:
@@ -327,6 +425,7 @@ final class PasteJob {
             lateAccepted = nil
             late()
         }
+        reconcileClipboard()
         let pasteboard = NSPasteboard.general
         let rules = PastePolicy.RestoreRules()
         let step = rules.step(sinceSend: now - sentAt,

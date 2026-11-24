@@ -85,6 +85,19 @@ final class RecordingViewportTests: XCTestCase {
         XCTAssertEqual(v.area.midX, 800, accuracy: 1, "zooms around where the area already is")
     }
 
+    func testResetEasesBackToTheWholeDisplay() {
+        var v = RecordingViewport(display: display)
+        v.zoom(by: log(3))
+        settle(&v, cursor: CGPoint(x: 1300, y: 800))
+        v.reset()
+        XCTAssertEqual(v.targetZoom, 1)
+        v.step(cursor: CGPoint(x: 1300, y: 800), following: false, dt: 1.0 / 60)
+        XCTAssertGreaterThan(v.zoom, 1, "one frame is not the whole way")
+        XCTAssertTrue(display.contains(v.area), "stays on the display on the way out")
+        settle(&v, cursor: CGPoint(x: 1300, y: 800), following: false)
+        XCTAssertEqual(v.area, display)
+    }
+
     func testDisplayWithOffsetOrigin() {
         let left = CGRect(x: -1920, y: -300, width: 1920, height: 1080)
         var v = RecordingViewport(display: left)

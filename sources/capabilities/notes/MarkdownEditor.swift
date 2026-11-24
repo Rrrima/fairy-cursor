@@ -71,6 +71,24 @@ struct MarkdownEditor: NSViewRepresentable {
     final class NoteTextView: NSTextView {
         var onDoubleClick: (() -> String?)?
 
+        /// The fairy has no Edit menu (it lives in the menu bar), and the menu is where ⌘C, ⌘V
+        /// and friends normally come from. So the note answers them itself.
+        override func performKeyEquivalent(with event: NSEvent) -> Bool {
+            guard event.type == .keyDown, window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
+            let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+            let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+            switch (flags, key) {
+            case ([.command], "c"): copy(nil)
+            case ([.command], "x"): cut(nil)
+            case ([.command], "v"): pasteAsPlainText(nil)
+            case ([.command], "a"): selectAll(nil)
+            case ([.command], "z"): undoManager?.undo()
+            case ([.command, .shift], "z"): undoManager?.redo()
+            default: return super.performKeyEquivalent(with: event)
+            }
+            return true
+        }
+
         override func mouseDown(with event: NSEvent) {
             if event.clickCount == 2, let markdown = onDoubleClick?() {
                 let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))

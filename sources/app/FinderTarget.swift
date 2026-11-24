@@ -38,8 +38,10 @@ enum FinderTarget {
         return desktop
     }
 
-    /// Write the screenshot as PNG, named like macOS does, never overwriting.
+    /// Write the screenshot as PNG, named like macOS does, never overwriting. A recording is
+    /// copied in under its own name (or left alone if it already lives in that folder).
     static func save(_ screenshot: HeldScreenshot, into folder: URL) -> URL? {
+        if let movie = screenshot.movie { return copy(movie, into: folder) }
         guard let data = screenshot.pngData() else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -56,6 +58,24 @@ enum FinderTarget {
             return url
         } catch {
             NSLog("[FairyCursor] save failed: \(error)")
+            return nil
+        }
+    }
+
+    static func copy(_ file: URL, into folder: URL) -> URL? {
+        if file.deletingLastPathComponent().standardizedFileURL.path == folder.standardizedFileURL.path { return file }
+        let base = file.deletingPathExtension().lastPathComponent, ext = file.pathExtension
+        var url = folder.appendingPathComponent(file.lastPathComponent)
+        var n = 2
+        while FileManager.default.fileExists(atPath: url.path) {
+            url = folder.appendingPathComponent("\(base) (\(n)).\(ext)")
+            n += 1
+        }
+        do {
+            try FileManager.default.copyItem(at: file, to: url)
+            return url
+        } catch {
+            NSLog("[FairyCursor] copy failed: \(error)")
             return nil
         }
     }

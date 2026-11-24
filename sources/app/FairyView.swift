@@ -84,6 +84,7 @@ struct FairyView: View {
             .interpolation(.high)
             .aspectRatio(contentMode: .fit)
             .frame(maxWidth: FairyLayout.thumbMax.width * shrink, maxHeight: FairyLayout.thumbMax.height * shrink)
+            .overlay(alignment: .bottomLeading) { if shot.isMovie { MovieBadge(duration: shot.duration) } }
             .clipShape(shape)
             .rotationEffect(angle)
             .glassEffect(.regular.tint(.white.opacity(0.15)), in: tilted)
@@ -94,6 +95,28 @@ struct FairyView: View {
             .blur(radius: dissolving ? 7 : 0)
             .opacity(dissolving || dropping ? 0 : 1)
             .animation(.easeIn(duration: dissolving ? 0.22 : 0.26), value: leaving)
+    }
+}
+
+/// Marks a card that is a recording: a play mark and how long it runs, on a dark frosted chip.
+struct MovieBadge: View {
+    let duration: TimeInterval?
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "play.fill").font(.system(size: 6.5, weight: .bold))
+            if let duration = duration { Text(Self.label(duration)).font(Theme.font(9, weight: .semibold)).monospacedDigit() }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2.5)
+        .background(Capsule().fill(.black.opacity(0.55)))
+        .padding(5)
+    }
+
+    static func label(_ seconds: TimeInterval) -> String {
+        let s = Int(seconds.rounded())
+        return String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 
