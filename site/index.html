@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fairy Cursor</title>
-<meta name="description" content="A little fairy for your Mac's cursor. It carries your screenshots, takes notes and records your screen.">
+<meta name="description" content="A cursor that helps with little things on your Mac. It carries your screenshots, takes notes and records your screen.">
 <link rel="icon" href="icon.png">
 <style>
 /* An empty page, one cursor, and a real piece of screen to work on: part of an article that
@@ -28,7 +28,11 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .top img { width: 24px; height: 24px; }
 .top .name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin-right: auto; }
 .get { font-size: 13px; font-weight: 500; color: #fff; background: var(--ink); padding: 7px 15px; border-radius: 999px; transition: opacity .16s ease; }
-.get:hover { opacity: .82; }
+.get:hover, .get.hover { opacity: .82; }
+/* The source: the quieter button, always after Download. */
+.gh { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink); background: var(--fill); padding: 7px 14px 7px 11px; border-radius: 999px; transition: background .16s ease; }
+.gh:hover { background: #e8e8ed; }
+.gh svg { width: 15px; height: 15px; }
 
 .mid { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 12px 0 40px; }
 
@@ -48,6 +52,8 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent), linear-gradient(180deg, transparent, #000 22px, #000 calc(100% - 130px), transparent);
   mask-composite: intersect;
 }
+.frag { transition: opacity .6s ease; }
+.frag.away { opacity: 0; }
 .frag-in { position: absolute; left: 0; top: 0; width: 620px; height: 444px; background: #fff; }
 .frag-in img { display: block; width: 620px; height: auto; will-change: transform; }
 
@@ -60,11 +66,11 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .sheet.video .face > svg, .pv > svg.inked { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sheet.video .face::after { content: attr(data-len); position: absolute; right: 6px; bottom: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; }
 
-/* What the fairy says under the pile when a drop is refused. */
+/* A word under the pile, when there is something to say. */
 .hint { font-size: 12px; font-weight: 500; color: var(--ink-2); white-space: nowrap; opacity: 0; transition: opacity .2s ease; }
 .hint.on { opacity: 1; }
 
-.marq { border-radius: 2px; background: rgba(0,0,0,.035); box-shadow: inset 0 0 0 1px rgba(0,0,0,.3); opacity: 0; }
+.marq { border-radius: 2px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(0,0,0,.5), 0 0 0 1.5px rgba(255,255,255,.95), 0 12px 30px rgba(0,0,0,.34), 0 3px 9px rgba(0,0,0,.22); opacity: 0; }
 .marq.on { opacity: 1; }
 .marq.flash { opacity: 0; transition: opacity .3s ease; }
 
@@ -117,8 +123,23 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .clock i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: breathe 2.4s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: .35; } }
 
+/* Where it ends: what it is, and where to get it. The cursor comes to rest on Download. */
+.end { width: 960px; height: 460px; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transform: translateY(8px); transition: opacity .5s ease, transform .6s cubic-bezier(.22,1,.36,1); }
+.end.on { opacity: 1; pointer-events: auto; transform: none; }
+/* On a narrow screen the canvas is small; the ending is drawn larger there so it can be read and pressed. */
+.end-in { display: flex; flex-direction: column; align-items: center; transform: scale(var(--e, 1)); }
+.end img { width: 64px; height: 64px; }
+.end h1 { margin: 16px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.022em; }
+.end p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; color: var(--ink-2); text-align: center; }
+.end .go { display: flex; gap: 10px; margin: 26px 0 0; }
+.end .get { font-size: 15px; padding: 10px 22px; }
+.end .gh { font-size: 15px; padding: 10px 20px 10px 16px; }
+.end .gh svg { width: 17px; height: 17px; }
+.end button { margin: 22px 0 0; padding: 4px 8px; border: 0; background: none; font: inherit; font-size: 12px; color: var(--ink-3); cursor: pointer; }
+.end button:hover { color: var(--ink); }
+
 /* The cursor: a Figma-style arrow. Its tip is the hot spot; the body leans as it moves. */
-.cursor { width: 0; height: 0; z-index: 9; will-change: transform; }
+.cursor { width: 0; height: 0; z-index: 9; will-change: transform; pointer-events: none; }
 .cursor svg { position: absolute; left: -3px; top: -3px; transform-origin: 3px 3px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.26)); transition: opacity .16s ease; }
 .cursor .nib { position: absolute; width: 13px; height: 13px; margin: -6.5px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); opacity: 0; transition: opacity .16s ease; }
 .cursor[data-tool] svg { opacity: 0; }
@@ -139,6 +160,8 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 0; }
 .dots i { width: 5px; height: 5px; border-radius: 999px; background: #d2d2d7; transition: width .32s cubic-bezier(.22,1,.36,1), background .2s ease; }
 .dots i.on { width: 18px; background: var(--ink); }
+.dots { transition: opacity .3s ease; }
+.dots.off { opacity: 0; }
 
 .foot { display: flex; justify-content: center; gap: 8px; padding: 0 0 28px; font-size: 12px; color: var(--ink-3); }
 .foot a:hover { color: var(--ink); }
@@ -157,10 +180,11 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     <img src="icon.png" alt="">
     <span class="name">Fairy Cursor</span>
     <a class="get" href="fairy-cursor.zip">Download</a>
+    <a class="gh" href="https://github.com/Rrrima/fairy-cursor"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a>
   </header>
 
   <div class="mid">
-    <div class="stage" role="img" aria-label="On the first page of a 1977 paper, a cursor takes a screenshot and carries it, drops it into a text box with a double-click, shakes one away, writes a note that remembers the page it was made on, and records the screen, scrolling the page, zooming in, highlighting a line and drawing a smile while a small preview shows the video, into a video it carries: one text box refuses it, the next takes it.">
+    <div class="stage" role="img" aria-label="On the first page of a 1977 paper, a cursor takes a screenshot and carries it, drops it into a text box with a double-click, shakes one away, writes a note that remembers the page it was made on, and records the screen, scrolling the page, zooming in, highlighting a line and drawing a smile while a small preview shows the video, into a video it carries and drops into a text box. It ends on the name, Fairy Cursor, a cursor that helps with little things, free and open source, with the cursor resting on the Download button.">
       <div class="canvas">
         <div class="frag"><div class="frag-in"><img src="paper.jpg" alt="" draggable="false"></div></div>
         <div class="fx">
@@ -174,6 +198,15 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
           <div class="sheets"></div>
           <div class="hint"></div>
         </div>
+        <div class="end">
+          <div class="end-in">
+          <img src="icon.png" alt="">
+          <h1>Fairy Cursor</h1>
+          <p>A cursor that helps with little things.<br>Free and open source.</p>
+          <div class="go"><a class="get" href="fairy-cursor.zip">Download</a><a class="gh" href="https://github.com/Rrrima/fairy-cursor"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a></div>
+          <button type="button">Watch again</button>
+          </div>
+        </div>
         <div class="marq"></div>
         <div class="cursor">
           <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#fff" stroke="#fff" stroke-width="5.4" stroke-linejoin="round"/><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#1d1d1f" stroke="#1d1d1f" stroke-width="2.6" stroke-linejoin="round"/></svg>
@@ -186,7 +219,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     <div class="dots" aria-hidden="true"></div>
   </div>
 
-  <footer class="foot"><span>macOS 26</span></footer>
+  <footer class="foot"><span>macOS 26</span><span>·</span><a href="https://rrrima.github.io/">Made by Rima</a></footer>
 </div>
 
 <script>
@@ -202,11 +235,12 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   const inkEl = $('.ink'), recEl = $('.rec'), txtEl = $('.note .txt');
   const canvas = $('.canvas'), fragIn = $('.frag-in'), pageImg = $('.frag-in img'), pvEl = $('.pv');
   const F = { x: 40, y: 8 };      // where the piece of screen sits on the canvas
+  const fragEl = $('.frag'), endEl = $('.end'), endGet = $('.end .get'), againEl = $('.end button');
   const capEl = $('.cap'), nmEl = $('.cap .nm'), ksEl = $('.cap .ks'), dotsEl = $('.dots');
 
   /* The canvas answers to the width of its own column. */
   let S = 1;
-  new ResizeObserver(([e]) => { S = e.contentRect.width / W; stage.style.setProperty('--s', S); }).observe(stage);
+  new ResizeObserver(([e]) => { S = e.contentRect.width / W; stage.style.setProperty('--s', S); stage.style.setProperty('--e', clamp(.62 / S, 1, 1.7)); }).observe(stage);
   /* Where a real element sits, in the canvas's own pixels. */
   const rectOf = node => {
     const r = node.getBoundingClientRect(), o = canvas.getBoundingClientRect();
@@ -399,6 +433,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     fieldEl.className = 'field'; field2El.className = 'field tall'; hintEl.className = 'hint';
     recEl.className = 'rec'; clockBox.className = 'clock'; pvEl.className = 'pv'; inkEl.innerHTML = ''; pvInk.innerHTML = ''; inkEl.style.opacity = 1; Y.t = 0;
     R.zoom = 1; R.follow = false; R.cx = D.x + D.w / 2; R.cy = D.y + D.h / 2;
+    endEl.classList.remove('on'); endGet.classList.remove('hover'); fragEl.classList.remove('away'); dotsEl.classList.remove('off');
   }
   const at = (node, x, y) => { node.style.left = x + 'px'; node.style.top = y + 'px'; };
 
@@ -448,7 +483,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
       at(noteEl, 350, 196); noteEl.classList.add('open');
       await sleep(240); key(0, false);
       await glide(640, 270, 620);
-      for (const ch of 'A medium that answers back. We still don’t have it.') { txtEl.textContent += ch; await sleep(ch === ' ' ? 70 : 32 + Math.random() * 38); }
+      for (const ch of 'A medium that answers back. Read this part again.') { txtEl.textContent += ch; await sleep(ch === ' ' ? 70 : 32 + Math.random() * 38); }
       await sleep(900);
       noteEl.classList.remove('open');
       await sleep(300);
@@ -517,35 +552,35 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
       await glide(330, 300, 900);
       await glide(640, 110, 1000);
 
-      // one text box says no…
+      // double-click a text box and the video goes in
       await cap(4, 'Drop it', ['double-click']);
-      at(fieldEl, 690, 130); fieldEl.className = 'field on';
-      await sleep(300);
-      await glide(790, 156);
-      tap(420); await dbl();
-      await sleep(200);
-      video.no = clock; hintEl.textContent = "this field doesn't take videos"; hintEl.classList.add('on');
-      await sleep(1700);
-      hintEl.classList.remove('on'); fieldEl.classList.remove('on');
-
-      // …the next one takes it
       at(field2El, 690, 250); field2El.classList.add('on');
       await sleep(350);
       await glide(800, 284);
       tap(420); await dbl();
       field2El.classList.add('has'); place(video, 702, 262, .5);
       await glide(860, 350, 700);
-      await sleep(1500);
+      await sleep(1300);
 
-      fx.classList.add('out'); capEl.classList.add('swap'); Y.t = 0;
-      await sleep(550);
+      // the end: the page clears, the name comes up, and the cursor goes to rest on Download
+      fx.classList.add('out'); capEl.classList.add('swap'); fragEl.classList.add('away'); Y.t = 0;
+      dotsEl.classList.add('off');
+      await sleep(600);
+      endEl.classList.add('on');
+      await sleep(700);
+      const b = rectOf(endGet);
+      await glide(b.x + b.w * .62, b.y + b.h * .62, 900);
+      endGet.classList.add('hover');
+      await new Promise(r => againEl.addEventListener('click', r, { once: true }));
+      endEl.classList.remove('on');
+      await sleep(450);
     }
   }
 
   /* With reduced motion the page simply rests: a cursor, and what it does in words. */
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    C.x.x = 760; C.y.x = 230; render();
-    nmEl.textContent = 'Screenshots, notes and recording, at the cursor'; capEl.classList.remove('swap');
+    fragEl.classList.add('away'); endEl.classList.add('on'); againEl.hidden = true; dotsEl.classList.add('off');
+    requestAnimationFrame(() => { const b = rectOf(endGet); C.x.x = b.x + b.w * .62; C.y.x = b.y + b.h * .62; render(); });
     return;
   }
   run();
