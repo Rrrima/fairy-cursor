@@ -25,7 +25,7 @@ struct GuideStep: Identifiable {
         let screenshots = enabled.contains("fairy.screenshots"), recording = enabled.contains("fairy.screen-recording")
         if screenshots {
             steps.append(GuideStep(id: "screenshot", name: "Screenshot", keys: ["⌘", "⇧", "4"],
-                                   line: "take a screenshot. the fairy picks it up and carries it.", scene: .screenshot))
+                                   line: "take a screenshot. your cursor picks it up and carries it.", scene: .screenshot))
         }
         // Dropping and shaking are the fairy's own; they need something to carry.
         if screenshots || recording {
@@ -40,7 +40,7 @@ struct GuideStep: Identifiable {
         }
         if recording {
             steps.append(GuideStep(id: "record", name: "Record", keys: ["⌘", "⇧", "6"],
-                                   line: "records the screen your cursor is on. press it again to stop, and the fairy carries the video.",
+                                   line: "records the screen your cursor is on. press it again to stop, and your cursor carries the video.",
                                    scene: .record,
                                    more: [(["⌥", "scroll"], "zoom"), (["⌥", "⌥"], "whole screen"),
                                           (["⌘", "⇧", "7"], "pen"), (["⌘", "⇧", "8"], "highlighter")]))
@@ -81,11 +81,13 @@ final class GuideWindowController {
         model = GuideModel(capabilities: capabilities)
     }
 
-    /// The first time the app runs (and only then), open the guide by itself.
-    func showOnFirstLaunch() {
+    /// Open by itself until the tour has been seen with everything allowed: a new user sees it
+    /// first to allow things, then again (after the restart macOS asks for) to learn the gestures.
+    func showOnLaunchIfNeeded() {
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: Self.seenKey) else { return }
-        defaults.set(true, forKey: Self.seenKey)
+        let allowed = model.needed.allSatisfy(\.isGranted)
+        guard !allowed || !defaults.bool(forKey: Self.seenKey) else { return }
+        if allowed { defaults.set(true, forKey: Self.seenKey) }
         show()
     }
 
@@ -181,7 +183,7 @@ struct GuideView: View {
                 .tracking(-0.4)
                 .foregroundStyle(Ink.primary)
                 .padding(.top, 12)
-            Text("a little fairy that follows your cursor\nand carries your screenshots.")
+            Text("a cursor that helps with little things:\nscreenshots, notes and recordings.")
                 .font(.system(size: 14))
                 .lineSpacing(2)
                 .multilineTextAlignment(.center)
@@ -199,13 +201,13 @@ struct GuideView: View {
                             Text(Self.why(permission)).font(.system(size: 12)).foregroundStyle(Ink.secondary)
                         }
                         Spacer(minLength: 8)
-                        PermissionState(granted: model.granted.contains(permission), open: permission.openSettings)
+                        PermissionState(granted: model.granted.contains(permission), open: { Permissions.allow(permission) })
                     }
                 }
                 // macOS only hands a running app its new permissions after a restart.
                 Text(model.needed.allSatisfy(model.granted.contains)
                      ? "all set. it lives in the menu bar; there's no dock icon."
-                     : "after allowing, quit fairy from the menu bar and open it again.")
+                     : "after allowing, quit Fairy Cursor from the menu bar and open it again.")
                     .font(.system(size: 12))
                     .foregroundStyle(Ink.faint)
             }

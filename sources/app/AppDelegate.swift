@@ -34,7 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         registerBundledFonts()
-        Permissions.requestMissing(capabilities.neededPermissions)
+        // A download opened where it landed moves itself into Applications and starts again.
+        if Relocation.moveToApplicationsIfNeeded() { return }
 
         panel = FairyPanel(state: state)
         follower = Follower(panel: panel)
@@ -42,8 +43,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         follower.start()
 
         setupStatusItem()
-        startCursorMonitor()
         capabilities.onDeactivated = { [weak self] id in self?.release(owner: id) }
+        // Nothing asks macOS for anything by itself: the guide does, one permission at a time,
+        // when its buttons are pressed. Watching the cursor and keys would each raise a system
+        // dialog of their own, so that waits until Accessibility is allowed.
+        if Permissions.accessibility { startWatching() } else { waitForAccessibility() }
+        guideWindow.showOnLaunchIfNeeded()
+        log("ready — accessibility=\(Permissions.accessibility) screenRecording=\(Permissions.screenRecording)")
+    }
+
+    private func waitForAccessibility() {
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard Permissions.accessibility else { return }
+                timer.invalidate()
+                self?.log("accessibility allowed")
+                self?.startWatching()
+            }
+        }
+    }
+
+    /// Everything that listens to the cursor, the keys and other apps.
+    private func startWatching() {
+        startCursorMonitor()
         capabilities.start(host: self)
 
         // Chromium/Electron apps expose web inputs only after an assistive client asks; ask now
@@ -59,9 +81,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             }
         }
-        // A new user's first run: say what the fairy does and what it needs.
-        guideWindow.showOnFirstLaunch()
-        log("ready — accessibility=\(Permissions.accessibility) screenRecording=\(Permissions.screenRecording)")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -258,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Only shown when something needs doing; otherwise permissions live in Settings.
         for permission in Permission.allCases where capabilities.neededPermissions.contains(permission) && !permission.isGranted {
-            menu.addItem(ActionMenuItem("Allow \(permission.title)…") { permission.openSettings() })
+            menu.addItem(ActionMenuItem("Allow \(permission.title)…") { Permissions.allow(permission) })
         }
         menu.addItem(ActionMenuItem("Welcome Guide…") { [weak self] in self?.guideWindow.show() })
         menu.addItem(ActionMenuItem("Settings…") { [weak self] in self?.settingsWindow.show() })

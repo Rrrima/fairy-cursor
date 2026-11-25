@@ -58,7 +58,7 @@ final class CapabilityRegistry: ObservableObject {
         if on { disabledIDs.remove(id) } else { disabledIDs.insert(id) }
         UserDefaults.standard.set(Array(disabledIDs).sorted(), forKey: disabledKey)
         if on {
-            Permissions.requestMissing(Self.manifest(of: capability).permissions)
+            for permission in Self.manifest(of: capability).permissions where !permission.isGranted { Permissions.allow(permission) }
             activate(capability)
         } else {
             deactivate(capability)

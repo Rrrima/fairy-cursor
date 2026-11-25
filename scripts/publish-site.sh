@@ -1,6 +1,7 @@
 #!/bin/bash
 # publish the website: site/ plus the latest release's zip, to the gh-pages branch.
-# github pages serves that branch at https://rrrima.github.io/fairy-cursor/
+# github pages serves that branch, and rrrima.me (netlify) passes /fairy-cursor/ through to it:
+# https://rrrima.me/fairy-cursor/
 #
 # usage:
 #   scripts/publish-site.sh           the latest release
@@ -26,4 +27,4 @@ git -C "$OUT" add -A
 git -C "$OUT" -c user.name="$(git config user.name)" -c user.email="$(git config user.email)" \
   commit -q -m "site: $(git rev-parse --short HEAD)${TAG:+, $TAG}"
 git -C "$OUT" push -q --force "$REMOTE" gh-pages
-echo "published. https://rrrima.github.io/fairy-cursor/"
+echo "published. https://rrrima.me/fairy-cursor/"
