@@ -6,7 +6,7 @@ needs macos 26.
 
 ## download
 
-grab [`fairy-cursor.zip`](https://github.com/Rrrima/fairy-cursor-site/releases/latest/download/fairy-cursor.zip) (or visit [the website](https://rrrima.github.io/fairy-cursor-site/)), unzip it and drag **fairy cursor** into `/Applications`.
+grab [`fairy-cursor.zip`](https://rrrima.github.io/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.github.io/fairy-cursor/)), unzip it and drag **fairy cursor** into `/Applications`.
 
 it's signed and notarized, so it opens like any other app.
 
@@ -191,6 +191,8 @@ to make a release zip (`build/fairy-cursor.zip`, apple silicon and intel):
 scripts/bundle.sh --zip       # ad-hoc signed; people click "open anyway" the first time
 scripts/bundle.sh --release   # developer id signed and notarized; see the top of the script
 ```
+
+to put a release out: `gh release create v1.2.3 build/fairy-cursor.zip`, then `scripts/publish-site.sh`. that publishes `site/` and the zip to the website, which is where the download button points.
 
 ## license
 
