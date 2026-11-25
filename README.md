@@ -1,12 +1,12 @@
 # <picture><source media="(prefers-color-scheme: dark)" srcset="assets/icon-dark.png"><img src="assets/icon.png" width="32" alt="" align="top"></picture> fairy cursor
 
-a little fairy that follows your cursor and carries your screenshots: take one, then double-click where it should go.
+a cursor that helps with little things. it carries your screenshots: take one, then double-click where it should go. it also takes notes and records your screen.
 
 needs macos 26.
 
 ## download
 
-grab [`fairy-cursor.zip`](https://rrrima.github.io/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.github.io/fairy-cursor/)), unzip it and drag **fairy cursor** into `/Applications`.
+grab [`fairy-cursor.zip`](https://rrrima.me/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.me/fairy-cursor/)), unzip it and drag **fairy cursor** into `/Applications`.
 
 it's signed and notarized, so it opens like any other app.
 
@@ -35,13 +35,13 @@ it lives in the menu bar; there's no dock icon. then turn it on in **system sett
 
 1. **accessibility** → fairy cursor
 2. **screen recording** → fairy cursor
-3. quit fairy from the menu bar and open it again
+3. quit fairy cursor from the menu bar and open it again
 
 after you rebuild, macos may forget these. turn them off and on again.
 
 ## use
 
-- `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` take a screenshot. the fairy picks it up
+- `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` take a screenshot. fairy cursor picks it up
 - double-click a text box to paste it
 - double-click a slide or a board (keynote, google slides, figma, excalidraw…) to drop it there
 - double-click in a google doc to drop it after the word you clicked
@@ -60,9 +60,9 @@ dropped one by accident? menu bar → restore last screenshot. your notes are un
 - the cursor gets bigger while you record, and goes back when you stop
 - `⌘ ⇧ 7` turns the cursor into a pen, `⌘ ⇧ 8` into a highlighter. press the other one to switch, the same one again to go back to the cursor. the ink is in the video
 - while drawing: `⌘ Z` takes back the last stroke, `⌫` clears the screen, `esc` puts the pen down (and the ink fades away)
-- when you stop, the fairy picks the recording up like a screenshot: double-click a text box to share it. the file is saved next to your screenshots
+- when you stop, fairy cursor picks the recording up like a screenshot: double-click a text box to share it. the file is saved next to your screenshots
 
-the blue outline shows what's being recorded; it isn't in the video. on a mac with a touch bar, `⌘ ⇧ 6` normally screenshots the touch bar; the fairy uses it for recording instead.
+the blue outline shows what's being recorded; it isn't in the video. on a mac with a touch bar, `⌘ ⇧ 6` normally screenshots the touch bar; fairy cursor uses it for recording instead.
 
 ## settings
 
@@ -82,14 +82,14 @@ nothing leaves your mac.
 
 ## change how it works
 
-the fairy doesn't take screenshots itself. it notices yours, so to use different screenshot keys, change them in **system settings → keyboard → keyboard shortcuts → screenshots** and the fairy follows.
+fairy cursor doesn't take screenshots itself. it notices yours, so to use different screenshot keys, change them in **system settings → keyboard → keyboard shortcuts → screenshots** and fairy cursor follows.
 
-everything that watches what you do comes from [ausm](https://github.com/foundation-interface/ausm), an open toolkit for reacting to activity on your mac. if you want the fairy to react to something else, start there:
+everything that watches what you do comes from [ausm](https://github.com/foundation-interface/ausm), an open toolkit for reacting to activity on your mac. if you want fairy cursor to react to something else, start there:
 
 - **screenshots**: `ScreenshotMonitorKit` ([`device-macos/screenshot-detector`](https://github.com/foundation-interface/ausm/tree/main/device-macos/screenshot-detector)) works out when a `⌘ ⇧ 3/4/5` screenshot is taken and recaptures it
 - **cursor and clicks**: `CursorMonitorKit` ([`device-macos/cursor-plus-plus`](https://github.com/foundation-interface/ausm/tree/main/device-macos/cursor-plus-plus)) reports moves and double-clicks, and what's under the cursor
 
-the fairy's own gestures live in this repo:
+fairy cursor's own gestures live in this repo:
 
 - shake: `sources/core/ShakeDetector.swift` (how far, how fast, how many times)
 - what a double-click does where: `sources/core/DropPolicy.swift`, `sources/core/PastePolicy.swift`
@@ -100,13 +100,13 @@ the fairy's own gestures live in this repo:
 
 ## capabilities
 
-the fairy itself does three things: it follows your cursor, carries screenshots, and drops them where you double-click. everything else it can do is a **capability**: a separate module you can switch on and off in **settings → capabilities**.
+fairy cursor itself does three things: it follows your cursor, carries screenshots, and drops them where you double-click. everything else it can do is a **capability**: a separate module you can switch on and off in **settings → capabilities**.
 
 ### what's in it now
 
 | capability | id | what it does | shortcut | needs |
 |---|---|---|---|---|
-| screenshots | `fairy.screenshots` | takes over macos screenshots, so the fairy carries each one instead of a file on the desktop | `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` | screen recording |
+| screenshots | `fairy.screenshots` | takes over macos screenshots, so fairy cursor carries each one instead of a file on the desktop | `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` | screen recording |
 | notes | `fairy.notes` | sticky notes saved as markdown; double-click one to drop screenshots into it | hold `⌥`, click | accessibility |
 | screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom and a pen and highlighter | `⌘ ⇧ 6`, `⌘ ⇧ 7`, `⌘ ⇧ 8` | screen recording, accessibility |
 
@@ -121,12 +121,12 @@ sources/
     screenshots/  one module per capability
     notes/
     recording/
-  app/            the host: the fairy, the menu, settings, and the list of capabilities
+  app/            the host: the app itself, the menu, settings, and the list of capabilities
   core/           pure logic, unit-tested
 ```
 
 - a capability imports `FairyKit` (and `FairyCore` if it wants), never another capability. so you can remove one without breaking the others
-- anything capabilities share goes through the host (`FairyHost`): what the fairy is carrying, whether the screen is busy, where captures are saved. that's how recording keeps `⌥` for its zoom and notes stay quiet meanwhile
+- anything capabilities share goes through the host (`FairyHost`): what fairy cursor is carrying, whether the screen is busy, where captures are saved. that's how recording keeps `⌥` for its zoom and notes stay quiet meanwhile
 - the host creates every capability once, calls `activate` when it's switched on and `deactivate` when it's switched off or the app quits
 
 ### add one
@@ -168,7 +168,7 @@ what a capability can do:
 - **`activate(host:)` / `deactivate()`**: start your monitors, taps and windows, then stop all of them. `deactivate` must leave the mac as it found it
 - **`menuItems()`**: items for the menu bar menu, rebuilt each time it opens (`ActionMenuItem` takes a closure)
 - **`settingsView()`**: rows for its own section in settings (`ToggleRow`, `FolderRow` keep it looking like the rest)
-- through **`FairyHost`**: hand the fairy a screenshot (`carry`), use what it's carrying (`carried`, `delivered`), hide the fairy while a system ui is up (`setCaptureUIVisible`), have the screen to itself for a while (`setExclusive`), take double-clicks over its own windows (`setDropZone`), and find the captures folder (`capturesFolder`). whatever a capability sets this way is undone for it when it's switched off
+- through **`FairyHost`**: hand it a screenshot (`carry`), use what it's carrying (`carried`, `delivered`), hide it while a system ui is up (`setCaptureUIVisible`), have the screen to itself for a while (`setExclusive`), take double-clicks over its own windows (`setDropZone`), and find the captures folder (`capturesFolder`). whatever a capability sets this way is undone for it when it's switched off
 
 capabilities are compiled into the app for now. installing one someone else wrote, without rebuilding, is next.
 

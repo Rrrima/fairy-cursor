@@ -283,7 +283,7 @@ struct SettingsView: View {
 
             section("Permissions") {
                 ForEach(Permission.allCases.filter { capabilities.neededPermissions.contains($0) }, id: \.self) { permission in
-                    PermissionRow(title: permission.title, granted: model.granted.contains(permission), open: permission.openSettings)
+                    PermissionRow(title: permission.title, granted: model.granted.contains(permission), open: { Permissions.allow(permission) })
                 }
             }
         }

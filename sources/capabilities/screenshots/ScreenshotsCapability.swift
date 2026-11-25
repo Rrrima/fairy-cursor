@@ -11,7 +11,7 @@ public final class ScreenshotsCapability: Capability {
     public static let manifest = CapabilityManifest(
         id: "fairy.screenshots",
         name: "Screenshots",
-        summary: "⌘⇧3, ⌘⇧4 or ⌘⇧5, and the fairy carries the shot.",
+        summary: "⌘⇧3, ⌘⇧4 or ⌘⇧5, and your cursor carries the shot.",
         permissions: [.screenRecording],
         shortcuts: ["⌘⇧3", "⌘⇧4", "⌘⇧5"]
     )
