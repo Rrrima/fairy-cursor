@@ -6,7 +6,7 @@ needs macos 26.
 
 ## download
 
-grab [`fairy-cursor.zip`](https://rrrima.me/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.me/fairy-cursor/)), unzip it and drag **fairy cursor** into `/Applications`.
+grab [`fairy-cursor.zip`](https://rrrima.me/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.me/fairy-cursor/)), unzip it and open **fairy cursor**. it offers to move itself into `/Applications`; say yes, so macos lists it by name and its permissions stick.
 
 it's signed and notarized, so it opens like any other app.
 
@@ -31,11 +31,13 @@ cp -R "build/Fairy Cursor.app" /Applications/
 open "/Applications/Fairy Cursor.app"
 ```
 
-it lives in the menu bar; there's no dock icon. then turn it on in **system settings → privacy & security**:
+it lives in the menu bar; there's no dock icon. the first time, a welcome card asks for two permissions, one at a time:
 
-1. **accessibility** → fairy cursor
-2. **screen recording** → fairy cursor
+1. press **allow** next to **accessibility**, and switch fairy cursor on in the system settings pane that opens
+2. the same for **screen recording**
 3. quit fairy cursor from the menu bar and open it again
+
+you can also switch both on yourself in **system settings → privacy & security**.
 
 after you rebuild, macos may forget these. turn them off and on again.
 
