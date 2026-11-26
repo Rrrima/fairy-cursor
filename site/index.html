@@ -137,8 +137,6 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .end .get { font-size: 15px; padding: 10px 22px; }
 .end .gh { font-size: 15px; padding: 10px 20px 10px 16px; }
 .end .gh svg { width: 17px; height: 17px; }
-.end button { margin: 22px 0 0; padding: 4px 8px; border: 0; background: none; font: inherit; font-size: 12px; color: var(--ink-3); cursor: pointer; }
-.end button:hover { color: var(--ink); }
 
 /* The cursor: a Figma-style arrow. Its tip is the hot spot; the body leans as it moves. */
 .cursor { width: 0; height: 0; z-index: 9; will-change: transform; pointer-events: none; }
@@ -159,7 +157,15 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   transition: background .12s ease, color .12s ease, transform .12s ease;
 }
 .k.down { background: var(--ink); color: #fff; transform: translateY(1px); }
-.dots { display: flex; justify-content: center; gap: 6px; margin: 16px 0 0; }
+.dots { display: flex; justify-content: center; margin: 6px 0 0; }
+/* Each dot is a button with room around it: click one to jump to that part. */
+.dots button { display: grid; place-items: center; padding: 10px 3px; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.dots button:hover i:not(.on) { background: var(--ink-3); }
+.dots button:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; border-radius: 999px; }
+/* The demo takes sideways swipes itself; up and down still scroll the page. */
+.mid { touch-action: pan-y; }
+/* While jumping to another part, everything lands where it belongs without animating there. */
+.ff *, .ff *::before, .ff *::after { transition: none !important; }
 .dots i { width: 5px; height: 5px; border-radius: 999px; background: #d2d2d7; transition: width .32s cubic-bezier(.22,1,.36,1), background .2s ease; }
 .dots i.on { width: 18px; background: var(--ink); }
 .dots { transition: opacity .3s ease; }
@@ -173,6 +179,79 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   .clock i, .note .txt::after, .field::after { animation: none; }
   .k, .dots i, .cap { transition: none; }
 }
+
+/* ── Feedback ── A note, made the way the app makes one: a glass pill at the cursor, and the
+   click grows the note out of it. "Leave a note" in the footer does the same from where it sits;
+   holding ⌥ over empty space and clicking does it anywhere on the page. */
+/* The way in sits right under the scene: just the words, and a note drawn the way the mark is
+   drawn (one fat round stroke, the same two eyes), a little tilted. Point at it and the glass
+   block the app shows under ⌥ forms around the note; click and the note grows out of that block. */
+.fb-go { align-self: center; margin: 14px 0 0; display: inline-flex; align-items: center; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2); background: none; border: 0; padding: 12px 18px; border-radius: 999px; cursor: pointer; transition: color .2s ease; -webkit-tap-highlight-color: transparent; }
+.fb-go:hover, .fb-go.arm { color: var(--ink); }
+.fb-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
+.fb-go .ic { position: relative; width: 17px; height: 17px; margin-right: 7px; transition: margin .34s cubic-bezier(.34,1.4,.64,1); }
+.fb-go .ic::before { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; border-radius: 7px; translate: -50% -50%; opacity: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.9), rgba(246,248,252,.75));
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.14), inset 0 1.5px 0 rgba(255,255,255,.95), 0 8px 18px -5px rgba(0,0,0,.22), 0 1px 4px rgba(0,0,0,.09);
+  transition: width .2s ease, height .2s ease, border-radius .2s ease, opacity .14s ease; }
+.fb-go:hover .ic, .fb-go.arm .ic { margin-right: 19px; }
+.fb-go:hover .ic::before, .fb-go.arm .ic::before { width: 46px; height: 34px; border-radius: 12px; opacity: 1;
+  transition: width .3s cubic-bezier(.34,1.5,.64,1), height .3s cubic-bezier(.34,1.5,.64,1), border-radius .3s ease, opacity .1s ease; }
+.fb-go svg { position: relative; display: block; width: 17px; height: 17px; overflow: visible; rotate: -9deg; transition: rotate .5s cubic-bezier(.34,1.7,.64,1), translate .5s cubic-bezier(.34,1.7,.64,1); }
+.fb-go:hover svg, .fb-go.arm svg { rotate: 5deg; translate: 0 -1px; }
+.fb-go svg path { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linejoin: round; stroke-linecap: round; }
+/* It blinks now and then, and looks up at you when you point at it. */
+.fb-go svg ellipse { fill: currentColor; transform-box: fill-box; transform-origin: center; animation: fb-blink 5.6s ease-in-out infinite; transition: translate .3s cubic-bezier(.34,1.5,.64,1); }
+.fb-go svg ellipse + ellipse { animation-delay: .04s; }
+.fb-go:hover svg ellipse, .fb-go.arm svg ellipse { translate: .5px -1px; }
+@keyframes fb-blink { 0%, 93%, 100% { transform: none; } 95.5% { transform: scaleY(.12); } }
+.fb-pill, .fb {
+  position: fixed; z-index: 20; left: 0; top: 0;
+  -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+}
+.fb-pill {
+  width: 14px; height: 14px; border-radius: 7px; translate: -50% -50%; opacity: 0; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.62), rgba(248,250,253,.4));
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.16), inset 0 1.5px 0 rgba(255,255,255,.9), 0 8px 18px -5px rgba(0,0,0,.24), 0 1px 4px rgba(0,0,0,.1);
+}
+.fb-pill.on { width: 46px; height: 34px; border-radius: 12px; opacity: 1;
+  transition: width .3s cubic-bezier(.34,1.5,.64,1), height .3s cubic-bezier(.34,1.5,.64,1), border-radius .3s ease, opacity .1s ease; }
+.fb {
+  --w: 320px; --h: 236px;
+  width: 46px; height: 34px; border-radius: 12px; overflow: hidden; opacity: 0; visibility: hidden;
+  background: rgba(255,255,255,.8);
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.13), inset 0 1.5px 0 rgba(255,255,255,.9), 0 24px 54px -16px rgba(0,0,0,.28), 0 4px 12px rgba(0,0,0,.06);
+}
+.fb.open { width: var(--w); height: var(--h); border-radius: 16px; opacity: 1; visibility: visible;
+  transition: width .42s cubic-bezier(.3,1.32,.55,1), height .42s cubic-bezier(.3,1.32,.55,1), border-radius .42s ease; }
+.fb.open.out { opacity: 0; transition: opacity .18s ease; }
+/* The inside is laid out at full size from the start and only fades in, so nothing reflows as it grows. */
+.fb .in { position: absolute; width: var(--w); height: var(--h); padding: 13px 14px 13px 16px; display: flex; flex-direction: column; opacity: 0; }
+.fb[data-x="r"] .in { right: 0; } .fb[data-y="b"] .in { bottom: 0; }
+.fb[data-x="c"] { translate: -50% 0; } .fb[data-x="c"] .in { left: 50%; translate: -50% 0; }
+.fb:not([data-x="c"]) { translate: none; }
+.fb.open .in { opacity: 1; transition: opacity .2s ease .12s; }
+.fb .hd { display: flex; align-items: center; justify-content: space-between; margin-left: -4px; }
+.fb .x { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; transition: background .16s ease, color .16s ease; }
+.fb .x:hover { background: rgba(0,0,0,.06); color: var(--ink); }
+.fb .x svg { width: 11px; height: 11px; }
+.fb textarea, .fb input { font: inherit; color: var(--ink); background: none; border: 0; outline: 0; padding: 0; }
+.fb textarea { flex: 1; resize: none; margin-top: 10px; font-size: 15px; line-height: 1.45; caret-color: var(--ink); }
+.fb textarea::placeholder, .fb input::placeholder { color: var(--ink-3); }
+.fb .ft { display: flex; align-items: center; gap: 10px; padding-top: 11px; border-top: 1px solid rgba(60,70,90,.1); }
+.fb input { flex: 1; min-width: 0; font-size: 12.5px; }
+.fb .send { font: inherit; font-size: 12.5px; font-weight: 500; color: #fff; background: var(--ink); border: 0; padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: opacity .16s ease; }
+.fb .send:hover { opacity: .82; } .fb .send:disabled { opacity: .28; cursor: default; }
+.fb .x:focus-visible, .fb .send:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* Sent: the form gives way to one line. */
+.fb .done { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .25s ease .1s; }
+.fb .done small { font-size: 11.5px; color: var(--ink-3); }
+.fb.sent .in > :not(.done) { opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.fb.sent .done { opacity: 1; }
+.fb .err { font-size: 11.5px; color: #c0392b; padding-bottom: 6px; display: none; } .fb.failed .err { display: block; }
+/* On a phone: 16px type, so iOS doesn't zoom the page when the field takes focus. */
+@media (max-width: 640px) { .fb textarea, .fb input { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .fb.open, .fb-pill.on { transition: none; } .fb-go svg ellipse { animation: none; } }
 </style>
 <!-- Visits and downloads, counted with rrrima.me's own Umami (cookieless; nothing shown on the page).
      data-domains keeps the github.io address and local previews out of the numbers. -->
@@ -209,7 +288,6 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
           <h1>Fairy Cursor</h1>
           <p>A cursor that helps with little things.<br>Free and open source.</p>
           <div class="go"><a class="get" href="/fairy-cursor/fairy-cursor.zip" data-umami-event="fairy-download" data-umami-event-from="ending">Download</a><a class="gh" href="https://github.com/Rrrima/fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="fairy-github" data-umami-event-from="ending"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a></div>
-          <button type="button">Watch again</button>
           </div>
         </div>
         <div class="marq"></div>
@@ -221,11 +299,29 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     </div>
 
     <div class="cap swap"><span class="nm"></span><span class="ks"></span></div>
-    <div class="dots" aria-hidden="true"></div>
+    <div class="dots" role="group" aria-label="Parts of the demo"></div>
+    <button type="button" class="fb-go" data-umami-event="feedback-open"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.6h7.4l5.8 5.8v7.4a3.6 3.6 0 0 1-3.6 3.6H7.2a3.6 3.6 0 0 1-3.6-3.6V7.2a3.6 3.6 0 0 1 3.6-3.6Z"/><ellipse cx="9.5" cy="13.2" rx="1.3" ry="2.15" transform="rotate(-6.9 9.5 13.2)"/><ellipse cx="13.5" cy="12.7" rx="1.3" ry="2.15" transform="rotate(-6.9 13.5 12.7)"/></svg></span>Leave a note</button>
   </div>
 
   <footer class="foot"><span>macOS 26</span><span>·</span><a href="https://rrrima.me/?utm_source=fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="rrrima-home">Made by Rima</a></footer>
 </div>
+
+<div class="fb-pill" aria-hidden="true"></div>
+<form class="fb" role="dialog" aria-label="Leave a note for Rima" novalidate>
+  <div class="in">
+    <div class="hd">
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/></svg>A note to Rima</span>
+      <button type="button" class="x" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <textarea name="message" placeholder="What should your cursor do? Anything broken?" aria-label="Your note" maxlength="4000"></textarea>
+    <div class="err" role="alert">Couldn’t send. Try again?</div>
+    <div class="ft">
+      <input type="email" name="email" placeholder="Email, if you’d like a reply" aria-label="Email, optional" autocomplete="email">
+      <button type="submit" class="send" disabled>Send</button>
+    </div>
+    <div class="done" aria-live="polite"><span>Thank you. Got it.</span><small hidden>Preview: nothing is sent anywhere yet.</small></div>
+  </div>
+</form>
 
 <script>
 /* The cursor is a small physics body. A script moves a *target* along eased paths and the
@@ -240,7 +336,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   const inkEl = $('.ink'), recEl = $('.rec'), txtEl = $('.note .txt');
   const canvas = $('.canvas'), fragIn = $('.frag-in'), pageImg = $('.frag-in img'), pvEl = $('.pv');
   const F = { x: 40, y: 8 };      // where the piece of screen sits on the canvas
-  const fragEl = $('.frag'), endEl = $('.end'), endGet = $('.end .get'), againEl = $('.end button');
+  const fragEl = $('.frag'), endEl = $('.end'), endGet = $('.end .get');
   const capEl = $('.cap'), nmEl = $('.cap .nm'), ksEl = $('.cap .ks'), dotsEl = $('.dots');
 
   /* The canvas answers to the width of its own column. */
@@ -341,12 +437,19 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 
   // ── caption ───────────────────────────────────────────────────────────────
   const STEPS = 5;
-  for (let i = 0; i < STEPS; i++) dotsEl.appendChild(document.createElement('i'));
+  const PARTS = ['Screenshot', 'Drop', 'Shake', 'Note', 'Record'];
+  for (let i = 0; i < STEPS; i++) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', PARTS[i]); b.title = PARTS[i];
+    b.appendChild(document.createElement('i')); b.addEventListener('click', () => goTo(i)); dotsEl.appendChild(b);
+  }
+  let cur = 0, gen = 0, ff = false, ffTo = 0;
   async function cap(i, name, keys) {
+    if (ff && i >= ffTo) ff = false;           // reached the part we were jumping to: play from here
+    cur = i;
     capEl.classList.add('swap'); await sleep(190);
     nmEl.textContent = name;
     ksEl.innerHTML = keys.map(k => `<span class="k">${k}</span>`).join('');
-    [...dotsEl.children].forEach((d, n) => d.classList.toggle('on', n === i));
+    [...dotsEl.children].forEach((d, n) => d.firstChild.classList.toggle('on', n === i));
     capEl.classList.remove('swap'); await sleep(260);
   }
   const key = (n, on) => ksEl.children[n]?.classList.toggle('down', on);
@@ -442,7 +545,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   }
   const at = (node, x, y) => { node.style.left = x + 'px'; node.style.top = y + 'px'; };
 
-  async function run() {
+  async function run(mine) {
     for (;;) {
       /* Put everything back while it's faded out, then start from an empty page. */
       reset();
@@ -569,26 +672,57 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 
       // the end: the page clears, the name comes up, and the cursor goes to rest on Download
       fx.classList.add('out'); capEl.classList.add('swap'); fragEl.classList.add('away'); Y.t = 0;
-      dotsEl.classList.add('off');
+      [...dotsEl.children].forEach(d => d.firstChild.classList.remove('on'));   // the dots stay: they are the way back in
       await sleep(600);
       endEl.classList.add('on');
       await sleep(700);
       const b = rectOf(endGet);
       await glide(b.x + b.w * .62, b.y + b.h * .62, 900);
       endGet.classList.add('hover');
-      await new Promise(r => againEl.addEventListener('click', r, { once: true }));
-      endEl.classList.remove('on');
-      await sleep(450);
+      cur = STEPS;
+      return;                                  // it rests here; a dot, an arrow key or a swipe starts a part again
     }
   }
 
   /* With reduced motion the page simply rests: a cursor, and what it does in words. */
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    fragEl.classList.add('away'); endEl.classList.add('on'); againEl.hidden = true; dotsEl.classList.add('off');
+    fragEl.classList.add('away'); endEl.classList.add('on'); dotsEl.classList.add('off');
     requestAnimationFrame(() => { const b = rectOf(endGet); C.x.x = b.x + b.w * .62; C.y.x = b.y + b.h * .62; render(); });
     return;
   }
-  run();
+  run(gen);
+
+  /* Jump to a part. The parts build on each other (you can't drop a screenshot you haven't
+     taken), so the demo starts over and runs silently, at full speed, up to that part. */
+  async function goTo(i) {
+    i = (i + STEPS) % STEPS;
+    gen++; waiters.length = 0; drv = null;     // the run in progress simply never wakes up
+    C.base = 1; C.down = false; C.tool = ''; delete cursorEl.dataset.tool; mq = null; marqEl.className = 'marq';
+    stroke = null; rec0 = null; inkDirty = true;
+    ff = true; ffTo = i; document.documentElement.classList.add('ff');
+    const mine = gen; run(mine);
+    for (let n = 0; ff && mine === gen && n < 6000; n++) {
+      clock += 16; step(.016);
+      for (let k = waiters.length - 1; k >= 0; k--) if (waiters[k].t <= clock) waiters.splice(k, 1)[0].r();
+      for (let k = 0; k < 12; k++) await null;
+    }
+    if (mine !== gen) return;
+    ff = false; render();
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (mine === gen) document.documentElement.classList.remove('ff'); }));
+  }
+  /* ← and → move between parts; so does a sideways swipe on the demo. */
+  addEventListener('keydown', e => {
+    if (e.altKey || e.metaKey || e.ctrlKey || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) return;
+    if (e.key === 'ArrowRight') goTo(Math.min(cur, STEPS - 1) + 1); else if (e.key === 'ArrowLeft') goTo(Math.min(cur, STEPS) - 1);
+  });
+  const midEl = $('.mid'); let sw = null;
+  midEl.addEventListener('touchstart', e => { const t = e.touches[0]; sw = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+  midEl.addEventListener('touchend', e => {
+    if (!sw) return;
+    const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y; sw = null;
+    if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    goTo(dx < 0 ? Math.min(cur, STEPS - 1) + 1 : Math.min(cur, STEPS) - 1);
+  }, { passive: true });
   /* #t=21000 jumps the loop ahead by that many milliseconds (for checking a moment);
      add &hold to stop there. */
   const skip = +(location.hash.match(/t=(\d+)/) || [])[1] || 0;
@@ -601,6 +735,112 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     if (location.hash.includes('hold')) { const st = document.createElement('style'); st.textContent = '*{transition:none!important}'; document.head.appendChild(st); render(); return; }
     requestAnimationFrame(frame);
   })();
+})();
+</script>
+
+<script>
+/* Feedback: the note. Notes go to a Netlify form on rrrima.me ("fairy-feedback", declared in the
+   website repo's public/fairy-feedback-form.html). Anywhere else (a local preview), Send pretends and says so. */
+(() => {
+  const HOST = location.hostname;
+  const ENDPOINT = HOST === 'rrrima.me' ? '/' : HOST.endsWith('github.io') ? 'https://rrrima.me/' : null;
+  const $ = s => document.querySelector(s);
+  const pill = $('.fb-pill'), note = $('.fb'), text = note.elements.message, mail = note.elements.email;
+  const sendEl = $('.fb .send'), goEl = $('.fb-go');
+  const PW = 46, PH = 34, EDGE = 12, HOLD = 300;
+  let mouse = { x: innerWidth / 2, y: innerHeight / 2 }, over = document.body, alt = false, arm = 0, isOpen = false, busy = false;
+
+  const empty = el => !(el && el.closest && el.closest('a, button, input, textarea, .fb'));
+  const put = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+  const pillOn = () => pill.classList.contains('on');
+  const showPill = (x, y) => { put(pill, x, y); pill.classList.add('on'); };
+  const hidePill = () => pill.classList.remove('on');
+
+  /* The note starts exactly where the pill was and grows away from the nearest edges. */
+  function openAt(x, y, centred) {
+    const w = innerWidth < 480 ? innerWidth - 2 * EDGE : 320, h = Math.min(236, innerHeight - 2 * EDGE);
+    note.style.setProperty('--w', w + 'px'); note.style.setProperty('--h', h + 'px');
+    const right = x - PW / 2 + w > innerWidth - EDGE, bottom = y - PH / 2 + h > innerHeight - EDGE;
+    const clamp = (v, max) => Math.max(EDGE, Math.min(v, max)) + 'px';
+    note.style.left = right ? 'auto' : clamp(x - PW / 2, innerWidth - w - EDGE);
+    note.style.right = right ? clamp(innerWidth - x - PW / 2, innerWidth - w - EDGE) : 'auto';
+    note.style.top = bottom ? 'auto' : clamp(y - PH / 2, innerHeight - h - EDGE);
+    note.style.bottom = bottom ? clamp(innerHeight - y - PH / 2, innerHeight - h - EDGE) : 'auto';
+    note.dataset.x = right ? 'r' : 'l'; note.dataset.y = bottom ? 'b' : 't';
+    // From the button it opens evenly to both sides, so it stays centred under the scene.
+    if (centred) { note.style.right = 'auto'; note.style.left = Math.max(EDGE + w / 2, Math.min(x, innerWidth - EDGE - w / 2)) + 'px'; note.dataset.x = 'c'; }
+    note.classList.remove('out', 'sent', 'failed');
+    hidePill(); isOpen = true;
+    note.getBoundingClientRect();              // start from the pill's size, then grow
+    note.classList.add('open');
+    setTimeout(() => isOpen && text.focus({ preventScroll: true }), 260);
+  }
+  function close() {
+    if (!isOpen) return;
+    isOpen = false; note.classList.add('out');
+    setTimeout(() => { if (!isOpen) note.classList.remove('open', 'out', 'sent', 'failed'); }, 200);
+  }
+
+  // "Leave a note": the glass block is already around the icon when you point at it (it forms
+  // first on a touch screen), and the note grows out of exactly that block.
+  goEl.addEventListener('click', () => {
+    if (isOpen) { text.focus(); return; }
+    const shown = goEl.matches(':hover') && matchMedia('(hover: hover)').matches;
+    goEl.classList.add('arm');
+    setTimeout(() => {
+      const r = goEl.querySelector('.ic').getBoundingClientRect();
+      openAt(r.left + r.width / 2, r.top + r.height / 2);
+      setTimeout(() => goEl.classList.remove('arm'), 300);
+    }, shown ? 0 : 260);
+  });
+
+  // The app's own gesture: hold ⌥ over empty space, then click.
+  addEventListener('mousemove', e => {
+    mouse = { x: e.clientX, y: e.clientY }; over = e.target;
+    if (alt && !isOpen) empty(over) ? (pillOn() ? put(pill, mouse.x, mouse.y) : arm || showPill(mouse.x, mouse.y)) : hidePill();
+  });
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Alt') { if (alt) { clearTimeout(arm); arm = 0; alt = false; hidePill(); } return; }
+    if (alt || isOpen || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    alt = true;
+    arm = setTimeout(() => { arm = 0; if (alt && !isOpen && empty(over)) showPill(mouse.x, mouse.y); }, HOLD);
+  });
+  const letGo = () => { clearTimeout(arm); arm = 0; alt = false; if (!isOpen) hidePill(); };
+  addEventListener('keyup', e => { if (e.key === 'Alt') letGo(); });
+  addEventListener('blur', letGo);
+  addEventListener('click', e => {
+    if (pillOn() && alt && !isOpen) { e.preventDefault(); e.stopPropagation(); openAt(e.clientX, e.clientY); window.umami?.track('feedback-open', { via: 'option-click' }); return; }
+    // A click elsewhere puts an empty note away; one with words in it stays.
+    if (isOpen && !note.contains(e.target) && e.target !== goEl && !text.value.trim() && !busy) close();
+  }, true);
+
+  $('.fb .x').addEventListener('click', close);
+  text.addEventListener('input', () => { sendEl.disabled = !text.value.trim(); note.classList.remove('failed'); });
+  text.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); note.requestSubmit(); } });
+
+  note.addEventListener('submit', async e => {
+    e.preventDefault();
+    const message = text.value.trim();
+    if (!message || busy) return;
+    busy = true; sendEl.disabled = true; sendEl.textContent = 'Sending…'; note.classList.remove('failed');
+    try {
+      if (ENDPOINT) {
+        const body = new URLSearchParams({ 'form-name': 'fairy-feedback', message, email: mail.value.trim(), page: location.href, 'bot-field': '' });
+        const cross = ENDPOINT !== '/';        // from github.io the reply can't be read; a failed request still throws
+        const r = await fetch(ENDPOINT, { method: 'POST', mode: cross ? 'no-cors' : 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+        if (!cross && !r.ok) throw new Error(r.status);
+      } else {
+        await new Promise(r => setTimeout(r, 450));
+        console.info('[feedback preview] not sent:', { message, email: mail.value.trim() || null });
+      }
+      $('.fb .done small').hidden = !!ENDPOINT;
+      note.classList.add('sent'); text.value = ''; mail.value = '';
+      window.umami?.track('feedback-sent');
+      setTimeout(() => { if (note.classList.contains('sent')) close(); }, ENDPOINT ? 1500 : 2400);
+    } catch { note.classList.add('failed'); sendEl.disabled = false; }
+    busy = false; sendEl.textContent = 'Send';
+  });
 })();
 </script>
 </body>
