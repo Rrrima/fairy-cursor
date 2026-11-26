@@ -19,9 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.3.1</string>
+	<string>0.4.0</string>
 	<key>CFBundleVersion</key>
-	<string>4</string>
+	<string>5</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>
@@ -30,6 +30,8 @@
 	<string>Fairy Cursor asks Finder which folder you double-clicked so it can save the screenshot there, and asks your browser for the page a note was started on.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Fairy Cursor adds your voice to a screen recording, only while you have the microphone switched on in the recording's sound panel.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>

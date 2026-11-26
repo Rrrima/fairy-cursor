@@ -8,14 +8,17 @@ import FairyKit
 /// the cursor is drawn larger. ⌘⇧7 and ⌘⇧8 turn the cursor into a pen or a highlighter that
 /// draws on screen, in the video. When it stops, the fairy picks the video up like a screenshot:
 /// double-click a text box to share it.
+///
+/// ⌘⇧9 pauses the recording and opens the sound panel: computer sound, microphone (and which
+/// one), both or neither. Putting the panel away carries on recording with that choice.
 @MainActor
 public final class RecordingCapability: Capability {
     public static let manifest = CapabilityManifest(
         id: "fairy.screen-recording",
         name: "Screen Recording",
-        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view, tap ⌥ twice for the whole screen, \(RecordingInput.penLabel) / \(RecordingInput.highlighterLabel) to draw.",
+        summary: "\(RecordingInput.shortcutLabel) to record. ⌥ + scroll zooms, hold ⌥ to move the view, tap ⌥ twice for the whole screen, \(RecordingInput.penLabel) / \(RecordingInput.highlighterLabel) to draw, \(RecordingInput.soundLabel) for sound.",
         permissions: [.screenRecording, .accessibility],
-        shortcuts: [RecordingInput.shortcutLabel, RecordingInput.penLabel, RecordingInput.highlighterLabel]
+        shortcuts: [RecordingInput.shortcutLabel, RecordingInput.penLabel, RecordingInput.highlighterLabel, RecordingInput.soundLabel]
     )
 
     private enum State { case idle, starting, recording, stopping }
@@ -26,6 +29,10 @@ public final class RecordingCapability: Capability {
     private var frame: RecordingFrame?
     private var ink: InkOverlay?
     private var state: State = .idle
+    /// What the recording listens to. Chosen in the sound panel, remembered between recordings.
+    private var sound = RecordingSound()
+    /// Between putting the panel away and the recording running again.
+    private var resuming = false
     private var id: String { Self.manifest.id }
 
     public init() {}
@@ -36,6 +43,9 @@ public final class RecordingCapability: Capability {
         let input = RecordingInput()
         input.onToggle = { [weak self] in self?.toggle() }
         input.onZoom = { [weak self] amount in self?.recorder?.zoom(by: amount) }
+        input.onSoundShortcut = { [weak self] in self?.toggleSoundPanel() }
+        input.isChoosingSound = { [weak self] in self?.frame?.isChoosingSound ?? false }
+        input.onSoundKey = { [weak self] key in self?.frame?.soundKey(key) }
         input.onResetZoom = { [weak self] in
             self?.recorder?.resetZoom()
             FairyLog.write("⌥⌥ — back to the whole screen")
@@ -77,6 +87,7 @@ public final class RecordingCapability: Capability {
                 item.state = ink.tool == tool ? .on : .off
                 items.append(item)
             }
+            items.append(ActionMenuItem("Sound… (\(RecordingInput.soundLabel))") { [weak self] in self?.toggleSoundPanel() })
         }
         return items
     }
@@ -112,6 +123,7 @@ public final class RecordingCapability: Capability {
         host.setExclusive(true, owner: id)
         let frame = RecordingFrame(displayID: displayID)
         let recorder = ScreenRecorder()
+        let sound = RecordingSound.saved()
         recorder.onStoppedUnexpectedly = { [weak self] error in
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
@@ -128,8 +140,11 @@ public final class RecordingCapability: Capability {
 
         Task { @MainActor in
             do {
-                try await recorder.start(displayID: displayID, excludingWindowIDs: [windowID], to: url)
+                let listening = try await recorder.start(displayID: displayID, excludingWindowIDs: [windowID], sound: sound, to: url)
                 guard self.state == .starting else { return }
+                self.sound = listening
+                self.frame?.setSound(listening)
+                FairyLog.write("recording sound: computer \(listening.computer), microphone \(listening.microphone) (\(listening.microphoneID ?? "the Mac's choice"))")
                 self.state = .recording
                 CursorScale.enlarge()
                 self.showInk(displayID: displayID)
@@ -141,6 +156,38 @@ public final class RecordingCapability: Capability {
                 self.state = .idle
                 self.host?.setExclusive(false, owner: self.id)
             }
+        }
+    }
+
+    // MARK: - Sound
+
+    /// ⌘⇧9: pause and choose what the video hears; again (or return, or a click outside) to go on.
+    private func toggleSoundPanel() {
+        guard state == .recording, !resuming, let frame = frame, let recorder = recorder else { return }
+        if frame.isChoosingSound {
+            frame.soundKey(.done)
+            return
+        }
+        // The pen takes every click; put it down so the panel can be clicked.
+        _ = ink?.press(.done)
+        recorder.pause()
+        FairyLog.write("recording paused for the sound panel")
+        frame.openSound(current: sound) { [weak self] chosen in self?.keepRecording(with: chosen) }
+    }
+
+    private func keepRecording(with chosen: RecordingSound) {
+        guard let recorder = recorder else { return }
+        chosen.save()
+        resuming = true
+        Task { @MainActor in
+            let listening = await recorder.resume(sound: chosen)
+            self.resuming = false
+            // Stopped meanwhile: there is nothing left to show it on.
+            guard self.recorder === recorder else { return }
+            self.sound = listening
+            self.frame?.setSound(listening)
+            self.frame?.resumed()
+            FairyLog.write("recording goes on: computer \(listening.computer), microphone \(listening.microphone) (\(listening.microphoneID ?? "the Mac's choice"))")
         }
     }
 

@@ -43,7 +43,8 @@ struct GuideStep: Identifiable {
                                    line: "records the screen your cursor is on. press it again to stop, and your cursor carries the video.",
                                    scene: .record,
                                    more: [(["⌥", "scroll"], "zoom"), (["⌥", "⌥"], "whole screen"),
-                                          (["⌘", "⇧", "7"], "pen"), (["⌘", "⇧", "8"], "highlighter")]))
+                                          (["⌘", "⇧", "7"], "pen"), (["⌘", "⇧", "8"], "highlighter"),
+                                          (["⌘", "⇧", "9"], "sound")]))
         }
         return steps
     }
