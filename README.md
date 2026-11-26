@@ -62,6 +62,8 @@ dropped one by accident? menu bar → restore last screenshot. your notes are un
 - the cursor gets bigger while you record, and goes back when you stop
 - `⌘ ⇧ 7` turns the cursor into a pen, `⌘ ⇧ 8` into a highlighter. press the other one to switch, the same one again to go back to the cursor. the ink is in the video
 - while drawing: `⌘ Z` takes back the last stroke, `⌫` clears the screen, `esc` puts the pen down (and the ink fades away)
+- `⌘ ⇧ 9` pauses the recording and opens the sound panel: switch on **computer sound**, the **microphone** (and pick which one), both or neither. `1` and `2` flip the switches, `↑` `↓` pick the microphone, `return` keeps recording. sound is off until you switch it on, and the choice is remembered
+- the first time you switch the microphone on, macos asks whether fairy cursor may use it
 - when you stop, fairy cursor picks the recording up like a screenshot: double-click a text box to share it. the file is saved next to your screenshots
 
 the blue outline shows what's being recorded; it isn't in the video. on a mac with a touch bar, `⌘ ⇧ 6` normally screenshots the touch bar; fairy cursor uses it for recording instead.
@@ -110,7 +112,7 @@ fairy cursor itself does three things: it follows your cursor, carries screensho
 |---|---|---|---|---|
 | screenshots | `fairy.screenshots` | takes over macos screenshots, so fairy cursor carries each one instead of a file on the desktop | `⌘ ⇧ 3` `⌘ ⇧ 4` `⌘ ⇧ 5` | screen recording |
 | notes | `fairy.notes` | sticky notes saved as markdown; double-click one to drop screenshots into it | hold `⌥`, click | accessibility |
-| screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom and a pen and highlighter | `⌘ ⇧ 6`, `⌘ ⇧ 7`, `⌘ ⇧ 8` | screen recording, accessibility |
+| screen recording | `fairy.screen-recording` | records the screen under the cursor, with `⌥` + scroll zoom and a pen and highlighter | `⌘ ⇧ 6`, `⌘ ⇧ 7`, `⌘ ⇧ 8`, `⌘ ⇧ 9` | screen recording, accessibility (and the microphone, only if you switch it on) |
 
 switch one off and it gives back everything it took over: screenshots go back to macos, `⌘ ⇧ 6` back to the system, and a recording in progress is saved first. the menu and the permission prompts only show what the switched-on capabilities need.
 

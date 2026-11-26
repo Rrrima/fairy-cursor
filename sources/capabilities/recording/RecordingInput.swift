@@ -22,6 +22,12 @@ final class RecordingInput {
     var onInkKey: (InkKey) -> Bool = { _ in false }
     /// ⌥ was tapped twice quickly while recording: show the whole screen again.
     var onResetZoom: () -> Void = {}
+    /// ⌘⇧9 while recording: open the sound panel (or close it and carry on).
+    var onSoundShortcut: () -> Void = {}
+    /// Whether the sound panel is open: it then gets the plain keys below.
+    var isChoosingSound: () -> Bool = { false }
+    /// A key for the sound panel.
+    var onSoundKey: (SoundKey) -> Void = { _ in }
     private var optionDown = false
     /// When ⌥ last went down on its own (0: nothing to pair a second tap with).
     private var lastOptionTap: CFTimeInterval = 0
@@ -43,6 +49,8 @@ final class RecordingInput {
     static let highlighterKeyCode: Int64 = 28   // "8"
     static let penLabel = "⌘⇧7"
     static let highlighterLabel = "⌘⇧8"
+    static let soundKeyCode: Int64 = 25   // "9"
+    static let soundLabel = "⌘⇧9"
 
     @discardableResult
     func start() -> Bool {
@@ -123,6 +131,27 @@ final class RecordingInput {
                 return false
             }
             guard isRecording(), !otherModifiers else { return true }
+            if command, shift, code == Self.soundKeyCode {
+                if !repeated { onSoundShortcut() }
+                return false
+            }
+            // The panel is driven from here, so it never has to take the keyboard from the app
+            // being recorded.
+            if isChoosingSound() {
+                guard !command, !shift else { return true }
+                let key: SoundKey?
+                switch code {
+                case 18: key = .computer        // 1
+                case 19: key = .microphone      // 2
+                case 126: key = .previous       // ↑
+                case 125: key = .next           // ↓
+                case 36, 76, 53: key = .done    // return, enter, esc
+                default: key = nil
+                }
+                guard let key = key else { return true }
+                if !repeated { onSoundKey(key) }
+                return false
+            }
             let key: InkKey?
             switch (code, command, shift) {
             case (Self.penKeyCode, true, true): key = .pen
@@ -140,7 +169,7 @@ final class RecordingInput {
             if down != optionDown { optionChanged(down, flags: event.flags) }
             return true
         case .scrollWheel:
-            guard isRecording(), event.flags.contains(.maskAlternate) else { return true }
+            guard isRecording(), !isChoosingSound(), event.flags.contains(.maskAlternate) else { return true }
             reportFollowing()
             onZoom(Self.zoomAmount(for: event))
             return false
@@ -177,4 +206,9 @@ private func recordingInputCallback(proxy: CGEventTapProxy, type: CGEventType, e
     let input = Unmanaged<RecordingInput>.fromOpaque(refcon).takeUnretainedValue()
     let pass = MainActor.assumeIsolated { input.handle(type: type, event: event) }
     return pass ? Unmanaged.passUnretained(event) : nil
+}
+
+/// What the keyboard can do in the sound panel.
+enum SoundKey {
+    case computer, microphone, previous, next, done
 }
