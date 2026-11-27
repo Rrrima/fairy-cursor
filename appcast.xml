@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Fairy Cursor</title>
+    <item>
+      <title>0.5.0</title>
+      <pubDate>Fri, 27 Nov 2026 21:34:47 +0000</pubDate>
+      <sparkle:version>6</sparkle:version>
+      <sparkle:shortVersionString>0.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+<style>body{font:13px -apple-system,sans-serif;line-height:1.5;color:#1d1d1f}code{font:12px ui-monospace,Menlo,monospace;background:#f2f2f5;border-radius:4px;padding:1px 4px}ul{padding-left:18px}li{margin:4px 0}</style>
+<p>fairy cursor updates itself from now on, and you choose how it follows.</p>
+<ul>
+<li><b>updates</b>: menu bar → <code>check for updates…</code>. it also looks by itself about once a day, and a new version waits as a small dot on the menu bar icon instead of interrupting you. settings → updates switches the looking off</li>
+<li><b>following</b>: settings → general → following. <code>close</code> stays right by the cursor, <code>calm</code> glides after it (as before), <code>lively</code> swings and leans as you move, like the demo on the website</li>
+</ul>
+      ]]></description>
+      <enclosure url="https://github.com/Rrrima/fairy-cursor/releases/download/v0.5.0/fairy-cursor.zip" sparkle:edSignature="Q1+XJChav4iM5zKXbXTmVw+eUd7n/xxl2WVqEe0AcZhYECM50lrd1PgyU+LTRnC40I/RhFNkjSxsetE+BoTDAQ==" length="4274087" type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>

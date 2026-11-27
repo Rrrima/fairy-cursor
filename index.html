@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fairy Cursor</title>
+<meta name="description" content="A cursor that helps with little things on your Mac. It carries your screenshots, takes notes and records your screen.">
+<link rel="canonical" href="https://rrrima.me/fairy-cursor/">
+<!-- Served at rrrima.me/fairy-cursor (with or without the last slash), so paths are absolute. -->
+<link rel="icon" href="/fairy-cursor/icon.png">
+<style>
+/* An empty page, one cursor, and a real piece of screen to work on: part of an article that
+   fades out at its edges, as if the rest of the display were just out of view. Screenshots
+   and recordings are live crops of it. The only added colour is the blue of a recording. */
+:root {
+  --ink: #1d1d1f; --ink-2: #6e6e73; --ink-3: #a1a1a6; --fill: #f2f2f5;
+  --accent: hsl(212, 72%, 56%);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: #fff; color: var(--ink); font-family: var(--font); -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration: none; }
+a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 999px; }
+
+.page { max-width: 1024px; min-height: 100vh; margin: 0 auto; padding: 0 32px; display: flex; flex-direction: column; }
+@media (max-width: 640px) { .page { padding: 0 16px; } }
+
+.top { display: flex; align-items: center; gap: 9px; padding: 20px 0; }
+.top img { width: 24px; height: 24px; }
+.top .name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+/* What's new, under the buttons: one quiet line that turns between the latest versions' one
+   thing each. Press it and the short history opens underneath. */
+.top { flex-wrap: wrap; }
+.top .name { margin-right: auto; }
+.news { order: 3; flex-basis: 100%; display: flex; justify-content: flex-end; position: relative; margin-top: 9px; }
+.new { display: block; font: inherit; font-size: 12.5px; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--ink-2); background: none; border: 0; padding: 0; cursor: pointer; text-align: right; white-space: nowrap; transition: color .16s ease; -webkit-tap-highlight-color: transparent; }
+.new:hover, .news.open .new { color: var(--ink); }
+.new b { font-weight: 500; color: hsl(212, 72%, 50%); }
+/* Only what differs changes: "New" and the rest of the line hold still, the version's one digit
+   and the words after the dot leave upward into a blur, and the next ones rise in a word at a time.
+   Both phrases share one grid cell, so the line is always as wide as the longer and never shifts. */
+/* The dot is drawn, not typed, with the same room on both sides: a typed one sits wherever the
+   letters next to it leave it. */
+.new .dot { display: inline-block; width: 2.5px; height: 2.5px; border-radius: 50%; background: currentColor; margin: 0 .62em; vertical-align: .28em; opacity: .75; }
+.swap { display: inline-grid; }
+.swap > span { grid-area: 1 / 1; white-space: nowrap; text-align: left; }
+.swap i { display: inline-block; font-style: normal; white-space: pre; opacity: 0; }
+.swap .on i { animation: word-in .6s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i, 0) * 60ms + 140ms); }
+.swap .out i { animation: word-out .32s ease both; animation-delay: calc(var(--i, 0) * 22ms); }
+@keyframes word-in { from { opacity: 0; transform: translateY(.42em); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes word-out { from { opacity: 1; transform: none; filter: blur(0); } to { opacity: 0; transform: translateY(-.36em); filter: blur(4px); } }
+/* The history: a small sheet of glass hanging from the line. Each version says its one thing. */
+.notes { position: absolute; z-index: 5; right: -6px; top: calc(100% + 9px); width: 318px; max-width: calc(100vw - 20px); padding: 15px 17px 13px; border-radius: 15px; text-align: left;
+  background: linear-gradient(135deg, rgba(255,255,255,.86), rgba(250,251,253,.74)); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 10px 30px rgba(15,23,42,.1), 0 2px 8px rgba(15,23,42,.05);
+  opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .18s ease, transform .3s cubic-bezier(.22,1,.36,1); }
+.news.open .notes { opacity: 1; transform: none; pointer-events: auto; }
+.notes ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }
+.notes li { display: grid; grid-template-columns: 38px 1fr; column-gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.notes li b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.notes li:first-child b { color: hsl(212, 72%, 50%); }
+.notes a { display: inline-block; margin: 12px 0 0 46px; font-size: 12px; color: var(--ink-3); transition: color .16s ease; }
+.notes a:hover { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .swap .on i { animation: none; opacity: 1; } .notes { transition: none; } }
+.get { font-size: 13px; font-weight: 500; color: #fff; background: var(--ink); padding: 7px 15px; border-radius: 999px; transition: opacity .16s ease; }
+.get:hover, .get.hover { opacity: .82; }
+/* The source: the quieter button, always after Download. */
+.gh { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; color: var(--ink); background: var(--fill); padding: 7px 14px 7px 11px; border-radius: 999px; transition: background .16s ease; }
+.gh:hover { background: #e8e8ed; }
+.gh svg { width: 15px; height: 15px; }
+
+.mid { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 12px 0 40px; }
+
+/* ── The canvas ── Drawn at 960 × 460 and scaled to its column. No frame: it is the page. */
+.stage { position: relative; width: 100%; max-width: 960px; margin: 0 auto; aspect-ratio: 960 / 460; }
+.canvas { position: absolute; left: 0; top: 0; width: 960px; height: 460px; transform: scale(var(--s, 1)); transform-origin: 0 0; user-select: none; -webkit-user-select: none; }
+.canvas > *, .fx > * { position: absolute; left: 0; top: 0; }
+.fx { width: 960px; height: 460px; transition: opacity .45s ease; }
+.fx.out { opacity: 0; }
+
+/* The piece of screen: the top of a 1977 paper, scanned. No window, no frame; it dissolves
+   at its edges, and most of all at the bottom, where the text runs on out of view. */
+.frag {
+  left: 40px; top: 8px; width: 620px; height: 444px; overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent), linear-gradient(180deg, transparent, #000 22px, #000 calc(100% - 130px), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent, #000 26px, #000 calc(100% - 26px), transparent), linear-gradient(180deg, transparent, #000 22px, #000 calc(100% - 130px), transparent);
+  mask-composite: intersect;
+}
+.frag { transition: opacity .6s ease; }
+.frag.away { opacity: 0; }
+.frag-in { position: absolute; left: 0; top: 0; width: 620px; height: 444px; background: #fff; }
+.frag-in img { display: block; width: 620px; height: auto; will-change: transform; }
+
+/* A screenshot in hand: the real pixels, with a white edge. */
+.sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; transition: opacity .45s ease, filter .45s ease; }
+.sheet .face { width: 132px; border-radius: 8px; position: relative; overflow: hidden; background: #fff; box-shadow: 0 0 0 2.5px #fff, 0 0 0 3px rgba(0,0,0,.08), 0 16px 32px -10px rgba(0,0,0,.28), 0 3px 8px rgba(0,0,0,.08); }
+.sheet .face .frag-in { transform-origin: 0 0; }
+.sheet.gone { opacity: 0; filter: blur(9px); }
+/* A recording in hand: the same crop, with what was drawn on it and its length. */
+.sheet.video .face > svg, .pv > svg.inked { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sheet.video .face::after { content: attr(data-len); position: absolute; right: 6px; bottom: 6px; padding: 1px 6px; border-radius: 6px; background: rgba(0,0,0,.55); color: #fff; font-size: 10px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* A word under the pile, when there is something to say. */
+.hint { font-size: 12px; font-weight: 500; color: var(--ink-2); white-space: nowrap; opacity: 0; transition: opacity .2s ease; }
+.hint.on { opacity: 1; }
+
+.marq { border-radius: 2px; background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(0,0,0,.5), 0 0 0 1.5px rgba(255,255,255,.95), 0 12px 30px rgba(0,0,0,.34), 0 3px 9px rgba(0,0,0,.22); opacity: 0; }
+.marq.on { opacity: 1; }
+.marq.flash { opacity: 0; transition: opacity .3s ease; }
+
+/* A text box: somewhere a double-click can put things. */
+.field { width: 250px; height: 48px; border-radius: 13px; background: var(--fill); opacity: 0; transform: translateY(6px); transition: opacity .3s ease, transform .4s cubic-bezier(.22,1,.36,1); }
+.field.on { opacity: 1; transform: none; }
+.field::after { content: ""; position: absolute; left: 16px; top: 15px; width: 1.5px; height: 18px; background: var(--ink); animation: caret 1s steps(1) infinite; }
+.field.has::after { left: 68px; }
+/* A second, roomier box: the kind that takes files. */
+.field.tall { height: 64px; border-radius: 16px; }
+.field.tall::after { top: 23px; }
+.field.tall.has::after { left: 90px; }
+@keyframes caret { 50% { opacity: 0; } }
+
+/* The note opens from the cursor with a hair of overshoot. */
+.note {
+  width: 220px; height: 126px; padding: 15px 17px; border-radius: 13px; transform-origin: 0 0; background: #fff;
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.1), 0 18px 40px -12px rgba(0,0,0,.24), 0 3px 8px rgba(0,0,0,.05);
+  font-size: 15px; line-height: 1.45; color: var(--ink);
+  opacity: 0; transform: scale(.3); transition: opacity .22s ease, transform .42s cubic-bezier(.34,1.56,.64,1);
+}
+.note.open { opacity: 1; transform: none; }
+/* Where the note was made: the same chip the page wears, so you can see it remembers. */
+.chip { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; background: rgba(0,0,0,.055); font-size: 11.5px; font-weight: 500; line-height: 1.3; color: var(--ink-2); }
+.chip svg { width: 12px; height: 12px; }
+.note .chip { margin: -2px 0 9px -3px; opacity: 0; transform: translateY(3px); transition: opacity .3s ease .3s, transform .4s cubic-bezier(.22,1,.36,1) .3s; }
+.note.open .chip { opacity: 1; transform: none; }
+.note .txt { display: block; }
+.note .txt::after { content: ""; display: inline-block; width: 1.5px; height: 17px; margin-left: 1px; vertical-align: -3px; background: var(--ink); animation: caret 1s steps(1) infinite; }
+
+/* Recording: the blue outline is what's in the video, and the clock says it's live. */
+.rec { border-radius: 10px; border: 2.5px solid var(--accent); opacity: 0; transition: opacity .3s ease; }
+.rec.on { opacity: 1; }
+.clock.on { opacity: 1; transform: translate(-50%, 0); }
+/* Ink: the pen is the same blue, and it ends up in the video. */
+.ink { width: 960px; height: 460px; overflow: visible; transition: opacity .35s ease; }
+.inked path { fill: none; stroke: var(--accent); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+/* The highlighter: wide, flat-ended and see-through, in the app's yellow. */
+.inked path.hl { stroke: hsla(52, 100%, 50%, .42); stroke-width: 10.5; stroke-linecap: butt; }
+/* What the video looks like right now: the outlined area, filling a small screen of its own. */
+.pv { width: 250px; border-radius: 10px; overflow: hidden; background: #fff; opacity: 0; transform: translateY(6px); transition: opacity .3s ease, transform .4s cubic-bezier(.22,1,.36,1);
+  box-shadow: 0 0 0 .5px rgba(0,0,0,.1), 0 18px 40px -14px rgba(0,0,0,.26), 0 3px 8px rgba(0,0,0,.06); }
+.pv.on { opacity: 1; transform: none; }
+.pv .frag-in { transform-origin: 0 0; }
+.pv .pvc { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.pv .pvc svg { position: absolute; left: -3px; top: -3px; transform-origin: 3px 3px; }
+.clock { transform: translate(-50%, -4px); opacity: 0; transition: opacity .3s ease, transform .4s cubic-bezier(.22,1,.36,1);
+  display: flex; align-items: center; gap: 6px; padding: 4px 11px 4px 9px; border-radius: 999px; background: #fff;
+  font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 .5px rgba(0,0,0,.06), 0 6px 16px rgba(0,0,0,.1); }
+.clock i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: breathe 2.4s ease-in-out infinite; }
+@keyframes breathe { 50% { opacity: .35; } }
+
+
+/* The cursor: a Figma-style arrow. Its tip is the hot spot; the body leans as it moves. */
+.cursor { width: 0; height: 0; z-index: 9; will-change: transform; pointer-events: none; }
+.cursor svg { position: absolute; left: -3px; top: -3px; transform-origin: 3px 3px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.26)); transition: opacity .16s ease; }
+.cursor .nib { position: absolute; width: 13px; height: 13px; margin: -6.5px; border-radius: 50%; background: var(--accent); border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); opacity: 0; transition: opacity .16s ease; }
+.cursor[data-tool] svg { opacity: 0; }
+.cursor[data-tool] .nib { opacity: 1; }
+.cursor[data-tool="hl"] .nib { width: 7px; height: 16px; margin: -8px -3.5px; border-radius: 3px; background: hsl(52, 100%, 55%); }
+
+/* ── Caption ── A name and its keys. Nothing else. */
+.cap { margin: 8px 0 0; height: 28px; display: flex; justify-content: center; align-items: center; gap: 11px; transition: opacity .2s ease; }
+.cap.swap { opacity: 0; }
+.cap .nm { font-size: 17px; font-weight: 600; letter-spacing: -0.012em; }
+.cap .ks { display: flex; gap: 4px; }
+.k {
+  min-width: 23px; height: 23px; padding: 0 7px; border-radius: 7px; display: grid; place-items: center;
+  font-size: 12px; font-weight: 500; color: var(--ink-2); background: var(--fill);
+  transition: background .12s ease, color .12s ease, transform .12s ease;
+}
+.k.down { background: var(--ink); color: #fff; transform: translateY(1px); }
+.dots { display: flex; justify-content: center; margin: 6px 0 0; }
+/* Each dot is a button with room around it: click one to jump to that part. */
+.dots button { display: grid; place-items: center; padding: 10px 3px; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.dots button:hover i:not(.on) { background: var(--ink-3); }
+.dots button:focus-visible { outline: 2px solid var(--ink); outline-offset: -4px; border-radius: 999px; }
+/* The demo takes sideways swipes itself; up and down still scroll the page. */
+.mid { touch-action: pan-y; }
+/* While jumping to another part, everything lands where it belongs without animating there. */
+.ff *, .ff *::before, .ff *::after { transition: none !important; }
+.dots i { width: 5px; height: 5px; border-radius: 999px; background: #d2d2d7; transition: width .32s cubic-bezier(.22,1,.36,1), background .2s ease; }
+.dots i.on { width: 18px; background: var(--ink); }
+.dots { transition: opacity .3s ease; }
+.dots.off { opacity: 0; }
+
+.foot { display: flex; justify-content: center; gap: 8px; padding: 0 0 28px; font-size: 12px; color: var(--ink-3); }
+.foot a:hover { color: var(--ink); }
+
+/* Stillness on request: the loop doesn't run (see the script) and nothing blinks or breathes. */
+@media (prefers-reduced-motion: reduce) {
+  .clock i, .note .txt::after, .field::after { animation: none; }
+  .k, .dots i, .cap { transition: none; }
+}
+
+/* ── Feedback ── A note, made the way the app makes one: a glass pill at the cursor, and the
+   click grows the note out of it, from where "Send feedback" sits. It says plainly that it is
+   feedback and who reads it: called "a note", it read as a place to try the app's notes. */
+/* The way in sits right under the scene: just the words, and a note drawn the way the mark is
+   drawn (one fat round stroke, the same two eyes), a little tilted. Point at it and the glass
+   block the app shows under ⌥ forms around the note; click and the note grows out of that block. */
+.fb-go { align-self: center; margin: 14px 0 0; display: inline-flex; align-items: center; font: inherit; font-size: 13px; font-weight: 500; color: var(--ink-2); background: none; border: 0; padding: 12px 18px; border-radius: 999px; cursor: pointer; transition: color .2s ease; -webkit-tap-highlight-color: transparent; }
+.fb-go:hover, .fb-go.arm { color: var(--ink); }
+.fb-go:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
+.fb-go .ic { position: relative; width: 17px; height: 17px; margin-right: 7px; transition: margin .34s cubic-bezier(.34,1.4,.64,1); }
+.fb-go .ic::before { content: ""; position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; border-radius: 7px; translate: -50% -50%; opacity: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,.9), rgba(246,248,252,.75));
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.14), inset 0 1.5px 0 rgba(255,255,255,.95), 0 8px 18px -5px rgba(0,0,0,.22), 0 1px 4px rgba(0,0,0,.09);
+  transition: width .2s ease, height .2s ease, border-radius .2s ease, opacity .14s ease; }
+.fb-go:hover .ic, .fb-go.arm .ic { margin-right: 19px; }
+.fb-go:hover .ic::before, .fb-go.arm .ic::before { width: 46px; height: 34px; border-radius: 12px; opacity: 1;
+  transition: width .3s cubic-bezier(.34,1.5,.64,1), height .3s cubic-bezier(.34,1.5,.64,1), border-radius .3s ease, opacity .1s ease; }
+.fb-go svg { position: relative; display: block; width: 17px; height: 17px; overflow: visible; rotate: -9deg; transition: rotate .5s cubic-bezier(.34,1.7,.64,1), translate .5s cubic-bezier(.34,1.7,.64,1); }
+.fb-go:hover svg, .fb-go.arm svg { rotate: 5deg; translate: 0 -1px; }
+.fb-go svg path { fill: none; stroke: currentColor; stroke-width: 2.7; stroke-linejoin: round; stroke-linecap: round; }
+/* It blinks now and then, and looks up at you when you point at it. */
+.fb-go svg ellipse { fill: currentColor; transform-box: fill-box; transform-origin: center; animation: fb-blink 5.6s ease-in-out infinite; transition: translate .3s cubic-bezier(.34,1.5,.64,1); }
+.fb-go svg ellipse + ellipse { animation-delay: .04s; }
+.fb-go:hover svg ellipse, .fb-go.arm svg ellipse { translate: .5px -1px; }
+@keyframes fb-blink { 0%, 93%, 100% { transform: none; } 95.5% { transform: scaleY(.12); } }
+.fb-pill, .fb {
+  position: fixed; z-index: 20; left: 0; top: 0;
+  -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+}
+.fb-pill {
+  width: 14px; height: 14px; border-radius: 7px; translate: -50% -50%; opacity: 0; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255,255,255,.62), rgba(248,250,253,.4));
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.16), inset 0 1.5px 0 rgba(255,255,255,.9), 0 8px 18px -5px rgba(0,0,0,.24), 0 1px 4px rgba(0,0,0,.1);
+}
+.fb-pill.on { width: 46px; height: 34px; border-radius: 12px; opacity: 1;
+  transition: width .3s cubic-bezier(.34,1.5,.64,1), height .3s cubic-bezier(.34,1.5,.64,1), border-radius .3s ease, opacity .1s ease; }
+.fb {
+  --w: 320px; --h: 236px;
+  width: 46px; height: 34px; border-radius: 12px; overflow: hidden; opacity: 0; visibility: hidden;
+  background: rgba(255,255,255,.8);
+  box-shadow: inset 0 0 0 1px rgba(60,70,90,.13), inset 0 1.5px 0 rgba(255,255,255,.9), 0 24px 54px -16px rgba(0,0,0,.28), 0 4px 12px rgba(0,0,0,.06);
+}
+.fb.open { width: var(--w); height: var(--h); border-radius: 16px; opacity: 1; visibility: visible;
+  transition: width .42s cubic-bezier(.3,1.32,.55,1), height .42s cubic-bezier(.3,1.32,.55,1), border-radius .42s ease; }
+.fb.open.out { opacity: 0; transition: opacity .18s ease; }
+/* The inside is laid out at full size from the start and only fades in, so nothing reflows as it grows. */
+.fb .in { position: absolute; width: var(--w); height: var(--h); padding: 13px 14px 13px 16px; display: flex; flex-direction: column; opacity: 0; }
+.fb[data-x="r"] .in { right: 0; } .fb[data-y="b"] .in { bottom: 0; }
+.fb[data-x="c"] { translate: -50% 0; } .fb[data-x="c"] .in { left: 50%; translate: -50% 0; }
+.fb:not([data-x="c"]) { translate: none; }
+.fb.open .in { opacity: 1; transition: opacity .2s ease .12s; }
+.fb .hd { display: flex; align-items: center; justify-content: space-between; margin-left: -4px; }
+.fb .x { width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; transition: background .16s ease, color .16s ease; }
+.fb .x:hover { background: rgba(0,0,0,.06); color: var(--ink); }
+.fb .x svg { width: 11px; height: 11px; }
+.fb textarea, .fb input { font: inherit; color: var(--ink); background: none; border: 0; outline: 0; padding: 0; }
+.fb textarea { flex: 1; resize: none; margin-top: 10px; font-size: 15px; line-height: 1.45; caret-color: var(--ink); }
+.fb textarea::placeholder, .fb input::placeholder { color: var(--ink-3); }
+.fb .ft { display: flex; align-items: center; gap: 10px; padding-top: 11px; border-top: 1px solid rgba(60,70,90,.1); }
+.fb input { flex: 1; min-width: 0; font-size: 12.5px; }
+.fb .send { font: inherit; font-size: 12.5px; font-weight: 500; color: #fff; background: var(--ink); border: 0; padding: 6px 14px; border-radius: 999px; cursor: pointer; transition: opacity .16s ease; }
+.fb .send:hover { opacity: .82; } .fb .send:disabled { opacity: .28; cursor: default; }
+.fb .x:focus-visible, .fb .send:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* Sent: the form gives way to one line. */
+.fb .done { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 6px; font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .25s ease .1s; }
+.fb .done small { font-size: 11.5px; color: var(--ink-3); }
+.fb.sent .in > :not(.done) { opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.fb.sent .done { opacity: 1; }
+.fb .err { font-size: 11.5px; color: #c0392b; padding-bottom: 6px; display: none; } .fb.failed .err { display: block; }
+/* On a phone: 16px type, so iOS doesn't zoom the page when the field takes focus. */
+@media (max-width: 640px) { .fb textarea, .fb input { font-size: 16px; } }
+@media (prefers-reduced-motion: reduce) { .fb.open, .fb-pill.on { transition: none; } .fb-go svg ellipse { animation: none; } }
+</style>
+<!-- Visits and downloads, counted with rrrima.me's own Umami (cookieless; nothing shown on the page).
+     data-domains keeps the github.io address and local previews out of the numbers. -->
+<script defer src="https://cloud.umami.is/script.js" data-website-id="f6e80bf5-b386-4159-bae9-30582a4ed169" data-domains="rrrima.me"></script>
+</head>
+<body>
+<div class="page">
+
+  <header class="top">
+    <img src="/fairy-cursor/icon.png" alt="">
+    <span class="name">Fairy Cursor</span>
+    <a class="get" href="/fairy-cursor/fairy-cursor.zip" data-umami-event="fairy-download" data-umami-event-from="top">Download</a>
+    <a class="gh" href="https://github.com/Rrrima/fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="fairy-github" data-umami-event-from="top"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a>
+    <div class="news">
+      <button class="new" type="button" aria-expanded="false" aria-controls="notes" data-umami-event="fairy-release-notes-open">
+        <b>New</b> in 0.<span class="swap ver"><span class="on">5</span><span>4</span></span>.0<span class="dot" aria-hidden="true"></span><span class="swap say"><span class="on">you choose how it follows</span><span>recordings can carry sound</span></span>
+      </button>
+      <div class="notes" id="notes">
+        <ol>
+          <li><b>0.5.0</b><span>You choose how it follows your cursor: close, calm or lively. It also updates itself from now on.</span></li>
+          <li><b>0.4.0</b><span>Screen recordings can carry sound: the computer's, your voice, or both.</span></li>
+        </ol>
+        <a href="https://github.com/Rrrima/fairy-cursor/releases" data-umami-event="outbound-click" data-umami-event-to="fairy-release-notes">All releases on GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="mid">
+    <div class="stage" role="img" aria-label="On the first page of a 1977 paper, a cursor takes a screenshot and carries it, drops it into a text box with a double-click, shakes one away, writes a note that remembers the page it was made on, and records the screen, scrolling the page, zooming in, highlighting a line and drawing a smile while a small preview shows the video, into a video it carries and drops into a text box. It ends on the name, Fairy Cursor, a cursor that helps with little things, free and open source, with the cursor resting on the Download button.">
+      <div class="canvas">
+        <div class="frag"><div class="frag-in"><img src="/fairy-cursor/paper.jpg" alt="" draggable="false"></div></div>
+        <div class="fx">
+          <svg class="ink inked" viewBox="0 0 960 460"></svg>
+          <div class="rec"></div>
+          <div class="pv"></div>
+          <div class="clock"><i></i><span>0:00</span></div>
+          <div class="field"></div>
+          <div class="field tall"></div>
+          <div class="note"><span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>Personal Dynamic Media.pdf</span><span class="txt"></span></div>
+          <div class="sheets"></div>
+          <div class="hint"></div>
+        </div>
+        <div class="marq"></div>
+        <div class="cursor">
+          <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#fff" stroke="#fff" stroke-width="5.4" stroke-linejoin="round"/><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#1d1d1f" stroke="#1d1d1f" stroke-width="2.6" stroke-linejoin="round"/></svg>
+          <div class="nib"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cap swap"><span class="nm"></span><span class="ks"></span></div>
+    <div class="dots" role="group" aria-label="Parts of the demo"></div>
+    <button type="button" class="fb-go" data-umami-event="feedback-open"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.6h7.4l5.8 5.8v7.4a3.6 3.6 0 0 1-3.6 3.6H7.2a3.6 3.6 0 0 1-3.6-3.6V7.2a3.6 3.6 0 0 1 3.6-3.6Z"/><ellipse cx="9.5" cy="13.2" rx="1.3" ry="2.15" transform="rotate(-6.9 9.5 13.2)"/><ellipse cx="13.5" cy="12.7" rx="1.3" ry="2.15" transform="rotate(-6.9 13.5 12.7)"/></svg></span>Send feedback</button>
+  </div>
+
+  <footer class="foot"><span>macOS 26</span><span>·</span><a href="https://rrrima.me/?utm_source=fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="rrrima-home">Made by Rima</a></footer>
+</div>
+
+<div class="fb-pill" aria-hidden="true"></div>
+<form class="fb" role="dialog" aria-label="Send feedback to Rima" novalidate>
+  <div class="in">
+    <div class="hd">
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/></svg>Feedback for Fairy Cursor</span>
+      <button type="button" class="x" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+    </div>
+    <textarea name="message" placeholder="A wish for your cursor, something broken, or any other thought." aria-label="Your feedback" maxlength="4000"></textarea>
+    <div class="err" role="alert">Couldn’t send. Try again?</div>
+    <div class="ft">
+      <input type="email" name="email" placeholder="Email, if you’d like a reply" aria-label="Email, optional" autocomplete="email">
+      <button type="submit" class="send" disabled>Send to Rima</button>
+    </div>
+    <div class="done" aria-live="polite"><span>Thank you. Got it.</span><small hidden>Preview: nothing is sent anywhere yet.</small></div>
+  </div>
+</form>
+
+<script>
+/* The cursor is a small physics body. A script moves a *target* along eased paths and the
+   cursor chases it on a spring, so it arrives a little late, leans into the move and
+   overshoots by a hair. Whatever it carries hangs from it on a softer spring. */
+(() => {
+  const W = 960;
+  const $ = s => document.querySelector(s);
+  const stage = $('.stage'), fx = $('.fx'), cursorEl = $('.cursor'), arrow = $('.cursor svg');
+  const sheetsEl = $('.sheets'), marqEl = $('.marq'), fieldEl = $('.field'), field2El = $('.field.tall'), noteEl = $('.note');
+  const clockBox = $('.clock'), clockEl = $('.clock span'), hintEl = $('.hint');
+  const inkEl = $('.ink'), recEl = $('.rec'), txtEl = $('.note .txt');
+  const canvas = $('.canvas'), fragIn = $('.frag-in'), pageImg = $('.frag-in img'), pvEl = $('.pv');
+  const F = { x: 40, y: 8 };      // where the piece of screen sits on the canvas
+  const fragEl = $('.frag');
+  const capEl = $('.cap'), nmEl = $('.cap .nm'), ksEl = $('.cap .ks'), dotsEl = $('.dots');
+
+  /* The canvas answers to the width of its own column. */
+  let S = 1;
+  new ResizeObserver(([e]) => { S = e.contentRect.width / W; stage.style.setProperty('--s', S); }).observe(stage);
+  /* Where a real element sits, in the canvas's own pixels. */
+  const rectOf = node => {
+    const r = node.getBoundingClientRect(), o = canvas.getBoundingClientRect();
+    return { x: (r.left - o.left) / S, y: (r.top - o.top) / S, w: r.width / S, h: r.height / S };
+  };
+
+  // ── springs ───────────────────────────────────────────────────────────────
+  const springs = new Set();
+  const spring = (x, k, c) => { const s = { x, v: 0, t: x, k, c }; springs.add(s); return s; };
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const inOut = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+
+  /* Cursor: quick but underdamped (ζ ≈ 0.72), so every stop has one small overshoot. */
+  const C = { x: spring(300, 210, 21), y: spring(330, 210, 21), rot: spring(0, 150, 15), sc: spring(1, 420, 26), base: 1, down: false, tool: '' };
+  let drv = null;                  // what is moving the cursor's target right now
+  let clock = 0;                   // the loop's own time: it stops when the tab is hidden
+  const waiters = [];
+  const sleep = ms => new Promise(r => waiters.push({ t: clock + ms, r }));
+
+  const drive = (fn, d) => { drv = { fn, t0: clock, d }; return sleep(d); };
+  const glide = (x, y, d) => {
+    const x0 = C.x.t, y0 = C.y.t, dist = Math.hypot(x - x0, y - y0);
+    d = d ?? clamp(340 + dist * 1.2, 420, 1200);
+    return drive(p => { const e = inOut(p); return [x0 + (x - x0) * e, y0 + (y - y0) * e]; }, d).then(() => sleep(150));
+  };
+  const press = async (ms = 90) => { C.down = true; await sleep(ms); C.down = false; await sleep(110); };
+  const dbl = async () => { await press(); await press(); };
+
+  // ── things in hand ────────────────────────────────────────────────────────
+  const SW = 132;
+  const TILT = [-5, 4];
+  let pile = [], sheets = [], made = 0, mq = null, rec0 = null, shownSecs = -1;
+
+  /* The recorded area: the whole screen, or a zoomed part of it that eases after the cursor
+     while ⌥ is held, like the app. */
+  const D = { x: 58, y: 22, w: 560, h: 348 };
+  const R = { x: spring(D.x, 70, 16), y: spring(D.y, 70, 16), w: spring(D.w, 70, 16), zoom: 1, cx: D.x + D.w / 2, cy: D.y + D.h / 2, follow: false };
+
+  /* How far the page is scrolled. */
+  const Y = spring(0, 120, 22);
+  /* The preview: a second copy of the page behind a small window, framed like the video. */
+  const PV = { x: 690, y: 44, w: 250, h: 250 * D.h / D.w };
+  pvEl.style.height = PV.h + 'px';
+  const pvCopy = fragIn.cloneNode(true), pvImg = pvCopy.querySelector('img');
+  pvEl.appendChild(pvCopy);
+  pvEl.insertAdjacentHTML('beforeend', '<svg class="inked"></svg><div class="pvc"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#fff" stroke="#fff" stroke-width="5.4" stroke-linejoin="round"/><path d="M4.2 4.2 9.3 20.2 12.2 13.1 19.4 10.2Z" fill="#1d1d1f" stroke="#1d1d1f" stroke-width="2.6" stroke-linejoin="round"/></svg></div>');
+  const pvInk = pvEl.querySelector('svg.inked'), pvCur = pvEl.querySelector('.pvc'), pvArrow = pvEl.querySelector('.pvc svg');
+  let inkDirty = false;
+  const recRect = () => ({ x: R.x.x, y: R.y.x, w: R.w.x, h: R.w.x * D.h / D.w });
+
+  /* Ink is laid down wherever the cursor really went, spring and all. */
+  let stroke = null;
+  const startStroke = kind => {
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    if (kind) p.setAttribute('class', kind);
+    inkEl.appendChild(p); stroke = { p, d: '', lx: null, ly: null };
+  };
+  const endStroke = () => { if (stroke) stroke.p.setAttribute('d', stroke.d); stroke = null; inkDirty = true; };
+  const line = async (x0, y0, x1, y1, ms, kind) => { await glide(x0, y0); startStroke(kind); await glide(x1, y1, ms); endStroke(); };
+
+  /* A sheet is a live crop of the piece of screen: a copy, scaled and shifted behind a small
+     window. It starts where it was taken, at that size, and springs to the cursor. */
+  function hold(r, video, from) {
+    const k = SW / r.w, h = r.h * k;
+    const el = document.createElement('div'); el.className = 'sheet' + (video ? ' video' : '');
+    const face = document.createElement('div'); face.className = 'face'; face.style.height = h + 'px';
+    const copy = fragIn.cloneNode(true);
+    copy.style.transform = `scale(${k}) translate(${F.x - r.x}px,${F.y - r.y}px)`;
+    face.appendChild(copy);
+    /* The video keeps what was drawn on the screen. */
+    if (video) { face.dataset.len = video; face.insertAdjacentHTML('beforeend', `<svg class="inked" viewBox="${r.x} ${r.y} ${r.w} ${r.h}">${inkEl.innerHTML}</svg>`); }
+    el.appendChild(face); sheetsEl.appendChild(el);
+    const o = from || r;
+    const sh = { el, h, x: spring(o.x, 95, 14), y: spring(o.y, 95, 14), sc: spring(o.w / SW, 150, 21), rot: spring(0, 110, 13),
+                 tilt: TILT[made++ % 2], held: true, tx: 0, ty: 0, ts: 1, no: null };
+    sheets.push(sh); pile.push(sh);
+    return sh;
+  }
+  const place = (sh, x, y, scale) => { pile = pile.filter(s => s !== sh); sh.held = false; sh.tx = x; sh.ty = y; sh.ts = scale; };
+
+  /* ⌘⇧4: drag a box (it follows the real cursor), let go, and the picture comes away. */
+  async function shoot(r) {
+    await glide(r.x, r.y);
+    tap(); await sleep(260);
+    C.down = true; mq = { x: r.x, y: r.y }; marqEl.className = 'marq on';
+    await glide(r.x + r.w, r.y + r.h, 780);
+    C.down = false; mq = null;
+    marqEl.style.cssText = `transform:translate(${r.x}px,${r.y}px);width:${r.w}px;height:${r.h}px`;
+    marqEl.className = 'marq on flash';
+    hold(r);
+    await sleep(560);
+  }
+
+  // ── caption ───────────────────────────────────────────────────────────────
+  const STEPS = 5;
+  const PARTS = ['Screenshot', 'Drop', 'Shake', 'Note', 'Record'];
+  for (let i = 0; i < STEPS; i++) {
+    const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', PARTS[i]); b.title = PARTS[i];
+    b.appendChild(document.createElement('i')); b.addEventListener('click', () => goTo(i)); dotsEl.appendChild(b);
+  }
+  let cur = 0, gen = 0, ff = false, ffTo = 0;
+  async function cap(i, name, keys) {
+    if (ff && i >= ffTo) ff = false;           // reached the part we were jumping to: play from here
+    cur = i;
+    capEl.classList.add('swap'); await sleep(190);
+    nmEl.textContent = name;
+    ksEl.innerHTML = keys.map(k => `<span class="k">${k}</span>`).join('');
+    [...dotsEl.children].forEach((d, n) => d.firstChild.classList.toggle('on', n === i));
+    capEl.classList.remove('swap'); await sleep(260);
+  }
+  const key = (n, on) => ksEl.children[n]?.classList.toggle('down', on);
+  const tap = (ms = 300) => { [...ksEl.children].forEach(k => k.classList.add('down')); sleep(ms).then(() => [...ksEl.children].forEach(k => k.classList.remove('down'))); };
+
+  // ── frame ─────────────────────────────────────────────────────────────────
+  function step(dt) {
+    if (drv) {
+      const p = Math.min(1, (clock - drv.t0) / drv.d);
+      [C.x.t, C.y.t] = drv.fn(p);
+      if (p >= 1) drv = null;
+    }
+    /* The body leans into sideways movement; the tip stays put. */
+    C.rot.t = C.tool ? 0 : clamp(C.x.v * 0.016, -13, 13);
+    C.sc.t = C.base * (C.down ? .84 : 1);
+
+    pile.forEach((sh, i) => {
+      const depth = pile.length - 1 - i;
+      sh.x.t = C.x.x + 18 * C.base + depth * 7; sh.y.t = C.y.x + 22 * C.base - depth * 8;
+      sh.sc.t = 1; sh.rot.t = sh.tilt + clamp(sh.x.v * 0.014, -11, 11);
+    });
+    sheets.forEach(sh => { if (!sh.held) { sh.x.t = sh.tx; sh.y.t = sh.ty; sh.sc.t = sh.ts; sh.rot.t = 0; } });
+
+    if (R.follow) { R.cx = C.x.x; R.cy = C.y.x; }
+    const rw = D.w / R.zoom, rh = D.h / R.zoom;
+    R.w.t = rw; R.x.t = clamp(R.cx - rw / 2, D.x, D.x + D.w - rw); R.y.t = clamp(R.cy - rh / 2, D.y, D.y + D.h - rh);
+
+    /* Small fixed steps keep the springs stable whatever the display's frame rate. */
+    for (let left = dt; left > 0; left -= 1 / 240) {
+      const h = Math.min(left, 1 / 240);
+      springs.forEach(s => { s.v += (-s.k * (s.x - s.t) - s.c * s.v) * h; s.x += s.v * h; });
+    }
+    if (stroke && (stroke.lx === null || Math.hypot(C.x.x - stroke.lx, C.y.x - stroke.ly) > 1.2)) {
+      stroke.d += `${stroke.d ? 'L' : 'M'}${C.x.x.toFixed(1)} ${C.y.x.toFixed(1)}`;
+      stroke.lx = C.x.x; stroke.ly = C.y.x; stroke.dirty = true;
+    }
+  }
+
+  function render() {
+    cursorEl.style.transform = `translate(${C.x.x}px,${C.y.x}px)`;
+    arrow.style.transform = `rotate(${C.rot.x}deg) scale(${C.sc.x})`;
+    sheets.forEach((sh, i) => {
+      /* The "no": three damped swings from side to side, like the app's. */
+      let no = 0;
+      if (sh.no !== null) { const p = (clock - sh.no) / 460; if (p >= 1) sh.no = null; else no = Math.sin(p * Math.PI * 6) * 11 * (1 - p); }
+      sh.el.style.transform = `translate(${sh.x.x + no}px,${sh.y.x}px) rotate(${sh.rot.x}deg) scale(${sh.sc.x})`;
+      sh.el.style.zIndex = i;
+    });
+    recEl.style.transform = `translate(${R.x.x}px,${R.y.x}px)`;
+    recEl.style.width = R.w.x + 'px'; recEl.style.height = R.w.x * D.h / D.w + 'px';
+    if (stroke && stroke.dirty) { stroke.dirty = false; stroke.p.setAttribute('d', stroke.d); inkDirty = true; }
+    pageImg.style.transform = `translateY(${-Y.x}px)`;
+    if (rec0 !== null) {
+      const r = recRect(), z = PV.w / r.w;
+      pvCopy.style.transform = `scale(${z}) translate(${F.x - r.x}px,${F.y - r.y}px)`;
+      pvImg.style.transform = pageImg.style.transform;
+      pvInk.setAttribute('viewBox', `${r.x} ${r.y} ${r.w} ${r.h}`);
+      if (inkDirty) { inkDirty = false; pvInk.innerHTML = inkEl.innerHTML; }
+      pvCur.style.transform = `translate(${(C.x.x - r.x) * z}px,${(C.y.x - r.y) * z}px)`;
+      pvArrow.style.transform = `scale(${z * C.sc.x})`;
+      pvArrow.style.opacity = C.tool ? 0 : 1;
+    }
+    const top = pile[pile.length - 1];
+    if (top) hintEl.style.transform = `translate(${top.x.x + 2}px,${top.y.x + top.h + 12}px)`;
+    if (mq) {
+      const x = Math.min(mq.x, C.x.x), y = Math.min(mq.y, C.y.x);
+      marqEl.style.cssText = `transform:translate(${x}px,${y}px);width:${Math.abs(C.x.x - mq.x)}px;height:${Math.abs(C.y.x - mq.y)}px`;
+    }
+    if (rec0 !== null) {
+      const secs = Math.floor((clock - rec0) / 1000);
+      if (secs !== shownSecs) { shownSecs = secs; clockEl.textContent = `0:${String(secs).padStart(2, '0')}`; }
+    }
+  }
+
+  let last = null;
+  function frame(ts) {
+    const dt = last === null ? 0 : Math.min(ts - last, 50);
+    last = ts; clock += dt;
+    step(dt / 1000); render();
+    for (let i = waiters.length - 1; i >= 0; i--) if (waiters[i].t <= clock) waiters.splice(i, 1)[0].r();
+    requestAnimationFrame(frame);
+  }
+
+  // ── the loop ──────────────────────────────────────────────────────────────
+  function reset() {
+    sheets.forEach(sh => { sh.el.remove(); [sh.x, sh.y, sh.sc, sh.rot].forEach(s => springs.delete(s)); });
+    sheets = []; pile = []; made = 0;
+    noteEl.className = 'note'; txtEl.textContent = '';
+    fieldEl.className = 'field'; field2El.className = 'field tall'; hintEl.className = 'hint';
+    recEl.className = 'rec'; clockBox.className = 'clock'; pvEl.className = 'pv'; inkEl.innerHTML = ''; pvInk.innerHTML = ''; inkEl.style.opacity = 1; Y.t = 0;
+    R.zoom = 1; R.follow = false; R.cx = D.x + D.w / 2; R.cy = D.y + D.h / 2;
+    dotsEl.classList.remove('off');
+  }
+  const at = (node, x, y) => { node.style.left = x + 'px'; node.style.top = y + 'px'; };
+
+  async function run(mine) {
+    for (;;) {
+      /* Put everything back while it's faded out, then start from an empty page. */
+      reset();
+      await sleep(700); fx.classList.remove('out');
+      await sleep(400);
+
+
+      // 1 · a real crop of the page lands on the cursor; a second one stacks on top
+      await cap(0, 'Screenshot', ['⌘', '⇧', '4']);
+      await shoot({ x: 65, y: 38, w: 260, h: 283 });      // the title block
+      await shoot({ x: 327, y: 62, w: 298, h: 246 });     // the cartoon
+      await glide(640, 200);
+
+      // 2 · double-click a text box and the top one goes in
+      await cap(1, 'Double-click to drop', ['double-click']);
+      at(fieldEl, 690, 186); fieldEl.classList.add('on');
+      await sleep(350);
+      await glide(800, 212);
+      tap(420); await dbl();
+      const top = pile[pile.length - 1];
+      fieldEl.classList.add('has'); place(top, 700, 191, .35);
+      await sleep(1100);
+      fieldEl.classList.remove('on'); top.el.classList.add('gone');
+      await glide(770, 250);
+
+      // 3 · shake and the other one dissolves
+      await cap(2, 'Shake to let go', ['shake']);
+      key(0, true);
+      const sx = C.x.t, sy = C.y.t, lost = pile[0];
+      const shaking = drive(p => [sx + Math.sin(p * Math.PI * 7) * 46 * (1 - p * .25), sy + Math.sin(p * Math.PI * 3) * 5], 980);
+      await sleep(540);
+      place(lost, lost.x.x + 6, lost.y.x + 28, 1); lost.el.classList.add('gone');
+      await shaking; key(0, false);
+      await sleep(600); lost.el.style.display = top.el.style.display = 'none';
+
+      // 4 · scroll down to the text, then ⌥ + click in the gutter between the columns: a note that remembers the page
+      await cap(3, 'Note', ['⌥', 'click']);
+      await glide(330, 240, 600);
+      Y.t = 110; await sleep(340); Y.t = 215; await sleep(700);
+      await glide(350, 196, 520);
+      key(0, true); await sleep(240); key(1, true);
+      await press(); key(1, false);
+      at(noteEl, 350, 196); noteEl.classList.add('open');
+      await sleep(240); key(0, false);
+      await glide(640, 270, 620);
+      for (const ch of 'A medium that answers back. Read this part again.') { txtEl.textContent += ch; await sleep(ch === ' ' ? 70 : 32 + Math.random() * 38); }
+      await sleep(900);
+      noteEl.classList.remove('open');
+      await sleep(300);
+
+      // 5 · record: the outline is what's in the video, and the small screen shows it live
+      await cap(4, 'Record', ['⌘', '⇧', '6']);
+      at(pvEl, PV.x, PV.y); at(clockBox, PV.x + PV.w - 38, PV.y - 13);
+      await glide(215, 190, 600);
+      tap(); rec0 = clock; shownSecs = -1; recEl.classList.add('on'); clockBox.classList.add('on'); pvEl.classList.add('on'); C.base = 1.4;
+      await sleep(700);
+
+      // …zoom in on the text with ⌥ + scroll…
+      await cap(4, 'Zoom', ['⌥', 'scroll']);
+      key(0, true); R.follow = true; await sleep(200);
+      key(1, true); R.zoom = 1.35; await sleep(260); key(1, false); await sleep(260);
+      key(1, true); R.zoom = 1.8; await sleep(260); key(1, false); await sleep(600);
+      key(0, false); R.follow = false;
+
+      // …highlight a line and a half, then put the highlighter down (esc: the ink fades)…
+      await cap(4, 'Highlight', ['⌘', '⇧', '8']);
+      tap(); C.tool = 'hl'; cursorEl.dataset.tool = 'hl';
+      await line(240, 220, 337, 220, 380, 'hl');
+      await line(68, 231, 285, 231, 600, 'hl');
+      await sleep(600);
+      C.tool = ''; delete cursorEl.dataset.tool;
+      inkEl.style.opacity = 0; await sleep(350);
+      inkEl.innerHTML = ''; inkDirty = true; inkEl.style.opacity = 1;
+
+      // …tap ⌥ twice for the whole screen, and scroll back up…
+      await cap(4, 'Whole screen', ['⌥', '⌥']);
+      key(0, true); await sleep(110); key(0, false); await sleep(90);
+      key(1, true); R.zoom = 1; await sleep(110); key(1, false);
+      await sleep(650);
+      Y.t = 100; await sleep(300); Y.t = 0;
+      await glide(385, 131, 800);
+
+      // …zoom in around the computer…
+      await cap(4, 'Zoom', ['⌥', 'scroll']);
+      key(0, true); R.follow = true; await sleep(200);
+      key(1, true); R.zoom = 1.9; await sleep(260); key(1, false); await sleep(650);
+      key(0, false); R.follow = false;
+
+      // …and draw a face on it, quickly
+      await cap(4, 'Draw', ['⌘', '⇧', '7']);
+      const fx0 = 385, fy0 = 131;
+      tap(); C.tool = 'pen'; cursorEl.dataset.tool = 'pen';
+      const dash = async (x, y0, y1) => { await glide(x, y0, 200); startStroke(); await drive(p => [x, y0 + (y1 - y0) * p], 110); await sleep(90); endStroke(); };
+      await dash(fx0 - 9, fy0 - 16, fy0 - 7);
+      await dash(fx0 + 9, fy0 - 16, fy0 - 7);
+      const smile = p => { const a = (158 - p * 136) * Math.PI / 180; return [fx0 + 19 * Math.cos(a), fy0 - 4 + 19 * Math.sin(a)]; };
+      await glide(...smile(0), 220);
+      startStroke(); await drive(p => smile(inOut(p) * .6 + p * .4), 380); await sleep(150); endStroke();
+      await sleep(550);
+      C.tool = ''; delete cursorEl.dataset.tool;
+      await sleep(300);
+
+      // stop: the video comes away in hand and follows
+      await cap(4, 'Keep the video', ['⌘', '⇧', '6']);
+      tap(); await sleep(200);
+      const secs = Math.max(1, Math.floor((clock - rec0) / 1000));
+      const shot = recRect();
+      rec0 = null; C.base = 1; recEl.className = 'rec'; clockBox.className = 'clock'; pvEl.className = 'pv';
+      const video = hold(shot, `0:${String(secs).padStart(2, '0')}`, PV);
+      inkEl.style.opacity = 0;
+      await sleep(700);
+      await glide(330, 300, 900);
+      await glide(640, 110, 1000);
+
+      // double-click a text box and the video goes in
+      await cap(4, 'Drop it', ['double-click']);
+      at(field2El, 690, 250); field2El.classList.add('on');
+      await sleep(350);
+      await glide(800, 284);
+      tap(420); await dbl();
+      field2El.classList.add('has'); place(video, 702, 262, .5);
+      await glide(860, 350, 700);
+      await sleep(1300);
+
+      // the end: what's in hand fades, the page scrolls home, and it starts over
+      fx.classList.add('out'); capEl.classList.add('swap'); Y.t = 0;
+      await sleep(500);
+    }
+  }
+
+  /* With reduced motion the page simply rests: the piece of screen, and what the cursor does in words. */
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    nmEl.textContent = 'Screenshots, notes and recordings'; capEl.classList.remove('swap'); dotsEl.classList.add('off');
+    requestAnimationFrame(render);
+    return;
+  }
+  run(gen);
+
+  /* Jump to a part. The parts build on each other (you can't drop a screenshot you haven't
+     taken), so the demo starts over and runs silently, at full speed, up to that part. */
+  async function goTo(i) {
+    i = (i + STEPS) % STEPS;
+    gen++; waiters.length = 0; drv = null;     // the run in progress simply never wakes up
+    C.base = 1; C.down = false; C.tool = ''; delete cursorEl.dataset.tool; mq = null; marqEl.className = 'marq';
+    stroke = null; rec0 = null; inkDirty = true;
+    ff = true; ffTo = i; document.documentElement.classList.add('ff');
+    const mine = gen; run(mine);
+    for (let n = 0; ff && mine === gen && n < 6000; n++) {
+      clock += 16; step(.016);
+      for (let k = waiters.length - 1; k >= 0; k--) if (waiters[k].t <= clock) waiters.splice(k, 1)[0].r();
+      for (let k = 0; k < 12; k++) await null;
+    }
+    if (mine !== gen) return;
+    ff = false; render();
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (mine === gen) document.documentElement.classList.remove('ff'); }));
+  }
+  /* ← and → move between parts; so does a sideways swipe on the demo. */
+  addEventListener('keydown', e => {
+    if (e.altKey || e.metaKey || e.ctrlKey || /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) return;
+    if (e.key === 'ArrowRight') goTo(Math.min(cur, STEPS - 1) + 1); else if (e.key === 'ArrowLeft') goTo(Math.min(cur, STEPS) - 1);
+  });
+  const midEl = $('.mid'); let sw = null;
+  midEl.addEventListener('touchstart', e => { const t = e.touches[0]; sw = e.touches.length === 1 ? { x: t.clientX, y: t.clientY } : null; }, { passive: true });
+  midEl.addEventListener('touchend', e => {
+    if (!sw) return;
+    const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y; sw = null;
+    if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    goTo(dx < 0 ? Math.min(cur, STEPS - 1) + 1 : Math.min(cur, STEPS) - 1);
+  }, { passive: true });
+  /* #t=21000 jumps the loop ahead by that many milliseconds (for checking a moment);
+     add &hold to stop there. */
+  const skip = +(location.hash.match(/t=(\d+)/) || [])[1] || 0;
+  (async () => {
+    while (clock < skip) {
+      clock += 16; step(.016); render();
+      for (let i = waiters.length - 1; i >= 0; i--) if (waiters[i].t <= clock) waiters.splice(i, 1)[0].r();
+      await new Promise(r => setTimeout(r, 0));
+    }
+    if (location.hash.includes('hold')) { const st = document.createElement('style'); st.textContent = '*{transition:none!important}'; document.head.appendChild(st); render(); return; }
+    requestAnimationFrame(frame);
+  })();
+})();
+</script>
+
+<script>
+/* Feedback: the note. Notes go to a Netlify form on rrrima.me ("fairy-feedback", declared in the
+   website repo's public/fairy-feedback-form.html). Anywhere else (a local preview), Send pretends and says so. */
+(() => {
+  const HOST = location.hostname;
+  const ENDPOINT = HOST === 'rrrima.me' ? '/' : HOST.endsWith('github.io') ? 'https://rrrima.me/' : null;
+  const $ = s => document.querySelector(s);
+  const pill = $('.fb-pill'), note = $('.fb'), text = note.elements.message, mail = note.elements.email;
+  const sendEl = $('.fb .send'), goEl = $('.fb-go');
+  const PW = 46, PH = 34, EDGE = 12, HOLD = 300;
+  let mouse = { x: innerWidth / 2, y: innerHeight / 2 }, over = document.body, alt = false, arm = 0, isOpen = false, busy = false;
+
+  const empty = el => !(el && el.closest && el.closest('a, button, input, textarea, .fb'));
+  const put = (el, x, y) => { el.style.left = x + 'px'; el.style.top = y + 'px'; };
+  const pillOn = () => pill.classList.contains('on');
+  const showPill = (x, y) => { put(pill, x, y); pill.classList.add('on'); };
+  const hidePill = () => pill.classList.remove('on');
+
+  /* The note starts exactly where the pill was and grows away from the nearest edges. */
+  function openAt(x, y, centred) {
+    const w = innerWidth < 480 ? innerWidth - 2 * EDGE : 320, h = Math.min(236, innerHeight - 2 * EDGE);
+    note.style.setProperty('--w', w + 'px'); note.style.setProperty('--h', h + 'px');
+    const right = x - PW / 2 + w > innerWidth - EDGE, bottom = y - PH / 2 + h > innerHeight - EDGE;
+    const clamp = (v, max) => Math.max(EDGE, Math.min(v, max)) + 'px';
+    note.style.left = right ? 'auto' : clamp(x - PW / 2, innerWidth - w - EDGE);
+    note.style.right = right ? clamp(innerWidth - x - PW / 2, innerWidth - w - EDGE) : 'auto';
+    note.style.top = bottom ? 'auto' : clamp(y - PH / 2, innerHeight - h - EDGE);
+    note.style.bottom = bottom ? clamp(innerHeight - y - PH / 2, innerHeight - h - EDGE) : 'auto';
+    note.dataset.x = right ? 'r' : 'l'; note.dataset.y = bottom ? 'b' : 't';
+    // From the button it opens evenly to both sides, so it stays centred under the scene.
+    if (centred) { note.style.right = 'auto'; note.style.left = Math.max(EDGE + w / 2, Math.min(x, innerWidth - EDGE - w / 2)) + 'px'; note.dataset.x = 'c'; }
+    note.classList.remove('out', 'sent', 'failed');
+    hidePill(); isOpen = true;
+    note.getBoundingClientRect();              // start from the pill's size, then grow
+    note.classList.add('open');
+    setTimeout(() => isOpen && text.focus({ preventScroll: true }), 260);
+  }
+  function close() {
+    if (!isOpen) return;
+    isOpen = false; note.classList.add('out');
+    setTimeout(() => { if (!isOpen) note.classList.remove('open', 'out', 'sent', 'failed'); }, 200);
+  }
+
+  // "Send feedback": the glass block is already around the icon when you point at it (it forms
+  // first on a touch screen), and the note grows out of exactly that block.
+  goEl.addEventListener('click', () => {
+    if (isOpen) { text.focus(); return; }
+    const shown = goEl.matches(':hover') && matchMedia('(hover: hover)').matches;
+    goEl.classList.add('arm');
+    setTimeout(() => {
+      const r = goEl.querySelector('.ic').getBoundingClientRect();
+      openAt(r.left + r.width / 2, r.top + r.height / 2);
+      setTimeout(() => goEl.classList.remove('arm'), 300);
+    }, shown ? 0 : 260);
+  });
+
+  // The app's own gesture (hold ⌥ over empty space, then click) is switched off here: people
+  // who had just watched it in the demo tried it, got this note, and sent "hello world".
+  const GESTURE = false;
+  addEventListener('mousemove', e => {
+    mouse = { x: e.clientX, y: e.clientY }; over = e.target;
+    if (alt && !isOpen) empty(over) ? (pillOn() ? put(pill, mouse.x, mouse.y) : arm || showPill(mouse.x, mouse.y)) : hidePill();
+  });
+  addEventListener('keydown', e => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Alt') { if (alt) { clearTimeout(arm); arm = 0; alt = false; hidePill(); } return; }
+    if (!GESTURE || alt || isOpen || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    alt = true;
+    arm = setTimeout(() => { arm = 0; if (alt && !isOpen && empty(over)) showPill(mouse.x, mouse.y); }, HOLD);
+  });
+  const letGo = () => { clearTimeout(arm); arm = 0; alt = false; if (!isOpen) hidePill(); };
+  addEventListener('keyup', e => { if (e.key === 'Alt') letGo(); });
+  addEventListener('blur', letGo);
+  addEventListener('click', e => {
+    if (pillOn() && alt && !isOpen) { e.preventDefault(); e.stopPropagation(); openAt(e.clientX, e.clientY); window.umami?.track('feedback-open', { via: 'option-click' }); return; }
+    // A click elsewhere puts an empty note away; one with words in it stays.
+    if (isOpen && !note.contains(e.target) && e.target !== goEl && !text.value.trim() && !busy) close();
+  }, true);
+
+  $('.fb .x').addEventListener('click', close);
+  text.addEventListener('input', () => { sendEl.disabled = !text.value.trim(); note.classList.remove('failed'); });
+  text.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); note.requestSubmit(); } });
+
+  note.addEventListener('submit', async e => {
+    e.preventDefault();
+    const message = text.value.trim();
+    if (!message || busy) return;
+    busy = true; sendEl.disabled = true; sendEl.textContent = 'Sending…'; note.classList.remove('failed');
+    try {
+      if (ENDPOINT) {
+        const body = new URLSearchParams({ 'form-name': 'fairy-feedback', message, email: mail.value.trim(), page: location.href, 'bot-field': '' });
+        const cross = ENDPOINT !== '/';        // from github.io the reply can't be read; a failed request still throws
+        const r = await fetch(ENDPOINT, { method: 'POST', mode: cross ? 'no-cors' : 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+        if (!cross && !r.ok) throw new Error(r.status);
+      } else {
+        await new Promise(r => setTimeout(r, 450));
+        console.info('[feedback preview] not sent:', { message, email: mail.value.trim() || null });
+      }
+      $('.fb .done small').hidden = !!ENDPOINT;
+      note.classList.add('sent'); text.value = ''; mail.value = '';
+      window.umami?.track('feedback-sent');
+      setTimeout(() => { if (note.classList.contains('sent')) close(); }, ENDPOINT ? 1500 : 2400);
+    } catch { note.classList.add('failed'); sendEl.disabled = false; }
+    busy = false; sendEl.textContent = 'Send';
+  });
+})();
+</script>
+<script>
+/* The release line opens and closes its short history; a click elsewhere or Esc closes it. */
+(() => {
+  const news = document.querySelector('.news'), line = news.querySelector('.new');
+  const set = open => { news.classList.toggle('open', open); line.setAttribute('aria-expanded', open); };
+  line.addEventListener('click', () => set(!news.classList.contains('open')));
+  document.addEventListener('click', e => { if (!news.contains(e.target)) set(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') set(false); });
+
+  /* Each phrase becomes words (and the digit one piece), so they can come and go one at a time. */
+  const swaps = [...line.querySelectorAll('.swap')];
+  swaps.forEach(swap => [...swap.children].forEach(item => {
+    const parts = item.textContent.split(/(?<= )/);
+    item.textContent = '';
+    parts.forEach((part, i) => { const w = document.createElement('i'); w.textContent = part; w.style.setProperty('--i', i); item.appendChild(w); });
+  }));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let at = 0;
+  setInterval(() => {
+    if (document.hidden || news.classList.contains('open')) return;
+    const next = (at + 1) % swaps[0].children.length;
+    swaps.forEach(swap => {
+      [...swap.children].forEach(item => item.classList.remove('out'));
+      swap.children[at].classList.replace('on', 'out');
+      swap.children[next].classList.add('on');
+    });
+    at = next;
+  }, 5200);
+})();
+</script>
+</body>
+</html>
