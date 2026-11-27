@@ -8,7 +8,7 @@ needs macos 26.
 
 grab [`fairy-cursor.zip`](https://rrrima.me/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.me/fairy-cursor/)), unzip it and open **fairy cursor**. it offers to move itself into `/Applications`; say yes, so macos lists it by name and its permissions stick.
 
-it's signed and notarized, so it opens like any other app.
+it's signed and notarized, so it opens like any other app. from 0.5.0 on it updates itself: menu bar → **check for updates…**
 
 ## build from source
 
@@ -75,14 +75,16 @@ menu bar → settings…
 - **capabilities**: screenshots, notes and screen recording each switch on and off on their own. switch one off and it lets go of everything it took over (screenshots go back to macos, `⌘ ⇧ 6` back to the system)
 - **keep every screenshot**: off by default, so a screenshot is only saved where you drop it and shaking throws it away. turn it on and every screenshot is saved to a folder you pick as you take it, and shaking just lets go
 - **notes folder**: each note is a markdown file there (`~/Documents/Fairy Notes` by default), so you can open, edit and sync them like any other file
+- **following**: how what you hold travels after the cursor. **close** stays right by it, **calm** glides after it (the default), **lively** swings and leans as you move, like the demo on the website
 - **captures folder**: where kept screenshots and recordings go (where macos saved screenshots, by default)
+- **updates**: which version you have, a button to look for a newer one, and whether to look by itself (about once a day)
 
 ## permissions
 
 - accessibility: follow the cursor, see what's under it, paste
 - screen recording: capture the screenshot you just took
 
-nothing leaves your mac.
+nothing leaves your mac. the one thing fairy cursor fetches is its update feed from the website, about once a day (**settings → updates** switches that off); it sends nothing about you with it.
 
 ## change how it works
 
@@ -196,7 +198,17 @@ scripts/bundle.sh --zip       # ad-hoc signed; people click "open anyway" the fi
 scripts/bundle.sh --release   # developer id signed and notarized; see the top of the script
 ```
 
-to put a release out: `gh release create v1.2.3 build/fairy-cursor.zip`, then `scripts/publish-site.sh`. that publishes `site/` and the zip to the website, which is where the download button points.
+to put a release out: bump `CFBundleShortVersionString` and `CFBundleVersion` in `resources/Info.plist`, `gh release create v1.2.3 build/fairy-cursor.zip`, then `scripts/publish-site.sh`. that publishes `site/` and the zip to the website, which is where the download button points, and the update feed.
+
+### updates
+
+installed copies update themselves with [sparkle](https://sparkle-project.org). about once a day (and on **check for updates…**) they read `https://rrrima.me/fairy-cursor/appcast.xml`, which `scripts/publish-site.sh` writes from the latest release: its version, where to download the zip, and a signature. a copy only installs a zip whose signature matches `SUPublicEDKey` in `resources/Info.plist`.
+
+the private half of that key is in the login keychain of the mac that makes releases ("private key for signing sparkle updates"). keep a copy somewhere safe: `.build/artifacts/sparkle/Sparkle/bin/generate_keys -x sparkle-private-key` writes it to a file, and `-f` reads it back in on another mac. without it, no installed copy accepts a new version.
+
+sparkle compares `CFBundleVersion`, so that number has to go up with every release.
+
+to try an update on your own mac without releasing anything, build an older-looking copy that reads a feed from your own machine (`VERSION`, `BUILD` and `FEED_URL` at the top of `scripts/bundle.sh`), write a feed for the current build with `scripts/appcast.sh`, and serve both from a folder with `python3 -m http.server`.
 
 ## license
 

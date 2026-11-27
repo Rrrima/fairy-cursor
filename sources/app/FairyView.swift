@@ -16,6 +16,7 @@ enum FairyLayout {
 
 struct FairyView: View {
     @ObservedObject var state: FairyState
+    @ObservedObject var sway: FairySway
 
     var body: some View {
         // No GlassEffectContainer: it renders the glass shapes itself and ignores the per-card
@@ -74,8 +75,9 @@ struct FairyView: View {
         let dropping = style == .drop
         let leaving = dissolving || dropping
         let shrink = 1 - CGFloat(depth) * 0.05
-        // A lone screenshot sits straight; tilts only appear once there is a pile.
-        let angle = Angle.degrees(state.stack.count > 1 ? shot.tilt : 0)
+        // A lone screenshot sits straight; tilts only appear once there is a pile. On top of
+        // that, the whole pile leans into the move when it follows the lively way.
+        let angle = Angle.degrees((state.stack.count > 1 ? shot.tilt : 0) + sway.lean)
         let shape = RoundedRectangle(cornerRadius: Theme.radiusSm, style: .continuous)
         let tilted = shape.rotation(angle)
 

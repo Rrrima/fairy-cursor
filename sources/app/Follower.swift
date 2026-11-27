@@ -1,22 +1,28 @@
 import AppKit
+import FairyCore
 
-/// Moves the panel after the cursor with a soft spring so it feels like a companion, not a
-/// cursor decoration. Positions are in AppKit screen coordinates (origin bottom-left).
+/// Moves the panel after the cursor so it feels like a companion, not a cursor decoration: how
+/// closely or how loosely is the user's choice (`FollowStyle`, see `FollowMotion`). Positions are
+/// in AppKit screen coordinates (origin bottom-left).
 @MainActor
 final class Follower {
     private let panel: NSPanel
+    private let sway: FairySway
     private var timer: Timer?
-    private var position: CGPoint = .zero
+    private var motion = FollowMotion()
     private var lastTick: CFTimeInterval = CACurrentMediaTime()
     private var started = false
 
     /// Offset of the content's top-left from the cursor hotspot, in points.
     var offset = CGPoint(x: 14, y: 18)
-    /// Response speed (1/s); higher snaps faster.
-    var stiffness: Double = 16
+    var style: FollowStyle {
+        get { motion.style }
+        set { motion.style = newValue }
+    }
 
-    init(panel: NSPanel) {
+    init(panel: NSPanel, sway: FairySway) {
         self.panel = panel
+        self.sway = sway
     }
 
     func start() {
@@ -65,19 +71,19 @@ final class Follower {
         let mouse = NSEvent.mouseLocation
         let target = targetOrigin(for: mouse)
         if !started {
-            position = target
+            motion.jump(toX: target.x, y: target.y)
             started = true
-            panel.setFrameOrigin(position)
+            panel.setFrameOrigin(target)
             panel.orderFrontRegardless()
             return
         }
         if !panel.isVisible { panel.orderFrontRegardless() }
-        let alpha = 1 - exp(-dt * stiffness)
-        position.x += (target.x - position.x) * alpha
-        position.y += (target.y - position.y) * alpha
+        motion.step(towardX: target.x, y: target.y, dt: dt)
+        let position = CGPoint(x: motion.x, y: motion.y)
         if abs(position.x - panel.frame.origin.x) > 0.05 || abs(position.y - panel.frame.origin.y) > 0.05 {
             panel.setFrameOrigin(position)
         }
+        sway.set(motion.lean)
     }
 
     /// Panel origin so the content's top-left sits below-right of the cursor, flipping to the

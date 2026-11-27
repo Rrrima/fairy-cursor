@@ -3,6 +3,19 @@ import FairyCore
 import FairyKit
 import SwiftUI
 
+/// How far the pile is leaning right now (degrees, clockwise), as it swings after the cursor.
+/// Kept apart from `FairyState` so a lean redraws the cards and nothing else has to notice.
+@MainActor
+final class FairySway: ObservableObject {
+    @Published private(set) var lean: Double = 0
+
+    /// Only steps you could see are published: at rest nothing redraws.
+    func set(_ value: Double) {
+        let settled = abs(value) < 0.05 ? 0 : value
+        if abs(settled - lean) >= 0.15 || (settled == 0 && lean != 0) { lean = settled }
+    }
+}
+
 @MainActor
 final class FairyState: ObservableObject {
     enum Phase: Equatable {
