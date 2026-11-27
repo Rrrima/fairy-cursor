@@ -54,15 +54,29 @@ struct FairyView: View {
                 }
             }
             if let hint = state.hint {
-                Text(hint)
-                    .font(Theme.font(11, weight: .medium))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
-                    .fixedSize()                                      // wider than the pile is fine
-                    .shadow(color: .white.opacity(0.9), radius: 2)   // legible over any desktop
+                hintLabel(hint)
                     .padding(.leading, 2)
                     .transition(.opacity)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func hintLabel(_ hint: String) -> some View {
+        let label = Text(hint).font(Theme.font(11, weight: .medium))
+        if #available(macOS 26.0, *) {
+            label
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+                .fixedSize()
+                .shadow(color: .white.opacity(0.9), radius: 2)
+        } else {
+            label
+                .foregroundStyle(Theme.text)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(.white, in: RoundedRectangle(cornerRadius: 6))
         }
     }
 
@@ -89,7 +103,7 @@ struct FairyView: View {
             .overlay(alignment: .bottomLeading) { if shot.isMovie { MovieBadge(duration: shot.duration) } }
             .clipShape(shape)
             .rotationEffect(angle)
-            .glassEffect(.regular.tint(.white.opacity(0.15)), in: tilted)
+            .fairyGlass(tint: .white.opacity(0.15), in: tilted)
             .overlay(tilted.stroke(Theme.hairlineStrong, lineWidth: 1))
             .overlay(tilted.stroke(Theme.rim, lineWidth: 1).padding(0.5))
             .glassShadow(isTop ? 1 : 0.6)

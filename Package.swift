@@ -11,7 +11,7 @@ let ausm: Package.Dependency = localAUSM.map { .package(name: "AUSM", path: $0) 
 
 let package = Package(
     name: "FairyCursor",
-    platforms: [.macOS("26.0")],
+    platforms: [.macOS("15.0")],
     dependencies: [
         ausm,
         // the updater: checks the website's feed for a newer version and installs it in place.
