@@ -5,6 +5,7 @@ struct NoteListView: View {
     @ObservedObject var store: NoteStore
     var ownerID: UUID?
     let onSelect: (UUID) -> Void
+    let onDelete: (UUID) -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -33,7 +34,12 @@ struct NoteListView: View {
                 } else {
                     LazyVStack(spacing: 2) {
                         ForEach(store.recent) { note in
-                            NoteListRow(note: note, isCurrent: note.id == ownerID) { onSelect(note.id) }
+                            NoteListRow(
+                                note: note,
+                                isCurrent: note.id == ownerID,
+                                onOpen: { onSelect(note.id) },
+                                onDelete: { onDelete(note.id) }
+                            )
                         }
                     }
                     .padding(6)
@@ -49,31 +55,37 @@ struct NoteListView: View {
 private struct NoteListRow: View {
     let note: Note
     let isCurrent: Bool
-    let action: () -> Void
+    let onOpen: () -> Void
+    let onDelete: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(note.title)
-                    .font(Theme.font(12, weight: .semibold))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(1)
-                Text("\(note.origin.label) · \(note.updatedAt.formatted(.relative(presentation: .named)))")
-                    .font(Theme.font(11))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
+        HStack(spacing: 0) {
+            Button(action: onOpen) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(note.title)
+                        .font(Theme.font(12, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text("\(note.origin.label) · \(note.updatedAt.formatted(.relative(presentation: .named)))")
+                        .font(Theme.font(11))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(Theme.slate.opacity(hovering || isCurrent ? 0.07 : 0),
-                        in: RoundedRectangle(cornerRadius: Theme.radiusSm))
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isCurrent ? .isSelected : [])
+
+            NoteHeaderButton(symbol: "trash", help: "Move \(note.title) to Trash", action: onDelete)
+                .padding(.trailing, 6)
         }
-        .buttonStyle(.plain)
+        .background(Theme.slate.opacity(hovering || isCurrent ? 0.07 : 0),
+                    in: RoundedRectangle(cornerRadius: Theme.radiusSm))
         .onHover { hovering = $0 }
-        .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }
 

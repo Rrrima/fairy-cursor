@@ -131,7 +131,6 @@ final class NotesController: NSObject {
         let view = NoteView(
             model: model,
             onClose: { [weak self] in self?.putAway(id) },
-            onDelete: { [weak self] in self?.delete(id) },
             onOpenOrigin: { [weak self] in self?.openOrigin(id) },
             onToggleNotesList: { [weak self] in self?.toggleNotesList(for: id) },
             attachmentsBase: store.folder,
@@ -189,6 +188,7 @@ final class NotesController: NSObject {
             store: store,
             ownerID: id,
             onSelect: { [weak self] in self?.openNote(id: $0) },
+            onDelete: { [weak self] in self?.delete($0) },
             onClose: { [weak self] in self?.closeNotesList() }
         ))
         hosting.sizingOptions = []

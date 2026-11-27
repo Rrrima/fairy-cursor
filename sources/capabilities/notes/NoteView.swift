@@ -63,7 +63,6 @@ final class NotePanel: NSPanel {
 struct NoteView: View {
     @ObservedObject var model: NoteModel
     let onClose: () -> Void
-    let onDelete: () -> Void
     let onOpenOrigin: () -> Void
     let onToggleNotesList: () -> Void
     /// Where `![](…)` paths in the note resolve (the notes folder).
@@ -120,14 +119,13 @@ struct NoteView: View {
             Spacer(minLength: 4)
             if hovering {
                 Group {
-                    NoteHeaderButton(symbol: "trash", help: "Delete note", action: onDelete)
-                    NoteHeaderButton(symbol: "xmark", help: "Put away (find it again in the menu bar)", action: onClose)
                     NoteHeaderButton(
                         symbol: "list.bullet",
                         help: model.isNotesListOpen ? "Hide notes list" : "Show notes list",
                         action: onToggleNotesList,
                         isActive: model.isNotesListOpen
                     )
+                    NoteHeaderButton(symbol: "xmark", help: "Put away (find it again in the menu bar)", action: onClose)
                 }
                 .transition(.opacity)
             }
