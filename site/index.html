@@ -29,13 +29,40 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .top { display: flex; align-items: center; gap: 9px; padding: 20px 0; }
 .top img { width: 24px; height: 24px; }
 .top .name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-/* What's new, said once and quietly beside the name: one line, its first words in the recording blue. */
-.new { display: inline-flex; align-items: center; margin: 0 auto 0 10px; min-width: 0; font-size: 12.5px; color: var(--ink-2); transition: color .16s ease; }
-.new:hover { color: var(--ink); }
-.new span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* What's new, under the buttons: one quiet line that turns between the latest versions' one
+   thing each. Press it and the short history opens underneath. */
+.top { flex-wrap: wrap; }
+.top .name { margin-right: auto; }
+.news { order: 3; flex-basis: 100%; display: flex; justify-content: flex-end; position: relative; margin-top: 9px; }
+.new { display: block; font: inherit; font-size: 12.5px; line-height: 1.5; font-variant-numeric: tabular-nums; color: var(--ink-2); background: none; border: 0; padding: 0; cursor: pointer; text-align: right; white-space: nowrap; transition: color .16s ease; -webkit-tap-highlight-color: transparent; }
+.new:hover, .news.open .new { color: var(--ink); }
 .new b { font-weight: 500; color: hsl(212, 72%, 50%); }
-/* On a phone the header has no room beside the name: the line takes its own row underneath. */
-@media (max-width: 640px) { .top { flex-wrap: wrap; } .top .name { margin-right: auto; } .new { order: 3; flex-basis: 100%; margin: 6px 0 0 1px; } }
+/* Only what differs changes: "New" and the rest of the line hold still, the version's one digit
+   and the words after the dot leave upward into a blur, and the next ones rise in a word at a time.
+   Both phrases share one grid cell, so the line is always as wide as the longer and never shifts. */
+/* The dot is drawn, not typed, with the same room on both sides: a typed one sits wherever the
+   letters next to it leave it. */
+.new .dot { display: inline-block; width: 2.5px; height: 2.5px; border-radius: 50%; background: currentColor; margin: 0 .62em; vertical-align: .28em; opacity: .75; }
+.swap { display: inline-grid; }
+.swap > span { grid-area: 1 / 1; white-space: nowrap; text-align: left; }
+.swap i { display: inline-block; font-style: normal; white-space: pre; opacity: 0; }
+.swap .on i { animation: word-in .6s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--i, 0) * 60ms + 140ms); }
+.swap .out i { animation: word-out .32s ease both; animation-delay: calc(var(--i, 0) * 22ms); }
+@keyframes word-in { from { opacity: 0; transform: translateY(.42em); filter: blur(4px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes word-out { from { opacity: 1; transform: none; filter: blur(0); } to { opacity: 0; transform: translateY(-.36em); filter: blur(4px); } }
+/* The history: a small sheet of glass hanging from the line. Each version says its one thing. */
+.notes { position: absolute; z-index: 5; right: -6px; top: calc(100% + 9px); width: 318px; max-width: calc(100vw - 20px); padding: 15px 17px 13px; border-radius: 15px; text-align: left;
+  background: linear-gradient(135deg, rgba(255,255,255,.86), rgba(250,251,253,.74)); -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 10px 30px rgba(15,23,42,.1), 0 2px 8px rgba(15,23,42,.05);
+  opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .18s ease, transform .3s cubic-bezier(.22,1,.36,1); }
+.news.open .notes { opacity: 1; transform: none; pointer-events: auto; }
+.notes ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; }
+.notes li { display: grid; grid-template-columns: 38px 1fr; column-gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ink-2); }
+.notes li b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.notes li:first-child b { color: hsl(212, 72%, 50%); }
+.notes a { display: inline-block; margin: 12px 0 0 46px; font-size: 12px; color: var(--ink-3); transition: color .16s ease; }
+.notes a:hover { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .swap .on i { animation: none; opacity: 1; } .notes { transition: none; } }
 .get { font-size: 13px; font-weight: 500; color: #fff; background: var(--ink); padding: 7px 15px; border-radius: 999px; transition: opacity .16s ease; }
 .get:hover, .get.hover { opacity: .82; }
 /* The source: the quieter button, always after Download. */
@@ -258,9 +285,20 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   <header class="top">
     <img src="/fairy-cursor/icon.png" alt="">
     <span class="name">Fairy Cursor</span>
-    <a class="new" href="https://github.com/Rrrima/fairy-cursor/releases/latest" data-umami-event="outbound-click" data-umami-event-to="fairy-release-notes"><span><b>New</b> in 0.5.0 · updates itself, and you choose how it follows</span></a>
     <a class="get" href="/fairy-cursor/fairy-cursor.zip" data-umami-event="fairy-download" data-umami-event-from="top">Download</a>
     <a class="gh" href="https://github.com/Rrrima/fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="fairy-github" data-umami-event-from="top"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a>
+    <div class="news">
+      <button class="new" type="button" aria-expanded="false" aria-controls="notes" data-umami-event="fairy-release-notes-open">
+        <b>New</b> in 0.<span class="swap ver"><span class="on">5</span><span>4</span></span>.0<span class="dot" aria-hidden="true"></span><span class="swap say"><span class="on">you choose how it follows</span><span>recordings can carry sound</span></span>
+      </button>
+      <div class="notes" id="notes">
+        <ol>
+          <li><b>0.5.0</b><span>You choose how it follows your cursor: close, calm or lively. It also updates itself from now on.</span></li>
+          <li><b>0.4.0</b><span>Screen recordings can carry sound: the computer's, your voice, or both.</span></li>
+        </ol>
+        <a href="https://github.com/Rrrima/fairy-cursor/releases" data-umami-event="outbound-click" data-umami-event-to="fairy-release-notes">All releases on GitHub</a>
+      </div>
+    </div>
   </header>
 
   <div class="mid">
@@ -823,6 +861,36 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     } catch { note.classList.add('failed'); sendEl.disabled = false; }
     busy = false; sendEl.textContent = 'Send';
   });
+})();
+</script>
+<script>
+/* The release line opens and closes its short history; a click elsewhere or Esc closes it. */
+(() => {
+  const news = document.querySelector('.news'), line = news.querySelector('.new');
+  const set = open => { news.classList.toggle('open', open); line.setAttribute('aria-expanded', open); };
+  line.addEventListener('click', () => set(!news.classList.contains('open')));
+  document.addEventListener('click', e => { if (!news.contains(e.target)) set(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') set(false); });
+
+  /* Each phrase becomes words (and the digit one piece), so they can come and go one at a time. */
+  const swaps = [...line.querySelectorAll('.swap')];
+  swaps.forEach(swap => [...swap.children].forEach(item => {
+    const parts = item.textContent.split(/(?<= )/);
+    item.textContent = '';
+    parts.forEach((part, i) => { const w = document.createElement('i'); w.textContent = part; w.style.setProperty('--i', i); item.appendChild(w); });
+  }));
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  let at = 0;
+  setInterval(() => {
+    if (document.hidden || news.classList.contains('open')) return;
+    const next = (at + 1) % swaps[0].children.length;
+    swaps.forEach(swap => {
+      [...swap.children].forEach(item => item.classList.remove('out'));
+      swap.children[at].classList.replace('on', 'out');
+      swap.children[next].classList.add('on');
+    });
+    at = next;
+  }, 5200);
 })();
 </script>
 </body>
