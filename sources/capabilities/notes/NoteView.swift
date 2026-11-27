@@ -18,6 +18,7 @@ enum NoteLayout {
 @MainActor
 final class NoteModel: ObservableObject {
     @Published private(set) var note: Note
+    @Published var isNotesListOpen = false
     /// Grow out of the summon pill instead of appearing at full size.
     let growsIn: Bool
     let focusOnOpen: Bool
@@ -42,10 +43,7 @@ final class NoteModel: ObservableObject {
 
 /// Borderless glass panel that takes typing without activating the app (like Spotlight).
 final class NotePanel: NSPanel {
-    let noteID: UUID
-
-    init(noteID: UUID, frame: NSRect) {
-        self.noteID = noteID
+    init(frame: NSRect) {
         super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         isOpaque = false
         backgroundColor = .clear
@@ -67,6 +65,7 @@ struct NoteView: View {
     let onClose: () -> Void
     let onDelete: () -> Void
     let onOpenOrigin: () -> Void
+    let onToggleNotesList: () -> Void
     /// Where `![](…)` paths in the note resolve (the notes folder).
     let attachmentsBase: URL
     /// Double-click while carrying screenshots: Markdown for them, or nil.
@@ -81,11 +80,7 @@ struct NoteView: View {
             let size = grown ? full : NoteLayout.summonSize
             let shape = RoundedRectangle(cornerRadius: grown ? NoteLayout.radius : NoteLayout.summonRadius, style: .continuous)
             ZStack(alignment: .topLeading) {
-                shape
-                    .fill(Color.white.opacity(0.42))
-                    .glassEffect(.regular.tint(.white.opacity(0.22)), in: shape)
-                    .overlay(shape.strokeBorder(Theme.hairlineStrong, lineWidth: 1))
-                    .overlay(shape.inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
+                NoteCardSurface(shape: shape)
                     .background(CardShadow(shape: shape, lift: grown ? 1 : 0.5))
                 if grown {
                     content
@@ -125,11 +120,17 @@ struct NoteView: View {
             Spacer(minLength: 4)
             if hovering {
                 Group {
-                    HeaderButton(symbol: "trash", help: "Delete note", action: onDelete)
-                    HeaderButton(symbol: "xmark", help: "Put away (find it again in the menu bar)", action: onClose)
+                    NoteHeaderButton(symbol: "trash", help: "Delete note", action: onDelete)
+                    NoteHeaderButton(symbol: "xmark", help: "Put away (find it again in the menu bar)", action: onClose)
                 }
                 .transition(.opacity)
             }
+            NoteHeaderButton(
+                symbol: "list.bullet",
+                help: model.isNotesListOpen ? "Hide notes list" : "Show notes list",
+                action: onToggleNotesList,
+                isActive: model.isNotesListOpen
+            )
         }
         .animation(.easeOut(duration: 0.12), value: hovering)
         .padding(.leading, 10)
@@ -229,23 +230,37 @@ private struct OriginChip: View {
     }
 }
 
-private struct HeaderButton: View {
+struct NoteCardSurface: View {
+    let shape: RoundedRectangle
+
+    var body: some View {
+        shape
+            .fill(Color.white.opacity(0.42))
+            .glassEffect(.regular.tint(.white.opacity(0.22)), in: shape)
+            .overlay(shape.strokeBorder(Theme.hairlineStrong, lineWidth: 1))
+            .overlay(shape.inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
+    }
+}
+
+struct NoteHeaderButton: View {
     let symbol: String
     let help: String
     let action: () -> Void
+    var isActive = false
     @State private var hover = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(hover ? Theme.text : Theme.muted)
+                .foregroundStyle(hover || isActive ? Theme.text : Theme.muted)
                 .frame(width: 20, height: 20)
-                .background(Circle().fill(Theme.slate.opacity(hover ? 0.08 : 0)))
+                .background(Circle().fill(Theme.slate.opacity(hover || isActive ? 0.08 : 0)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .onHover { hover = $0 }
+        .accessibilityLabel(help)
         .help(help)
     }
 }
