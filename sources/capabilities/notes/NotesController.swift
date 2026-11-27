@@ -8,7 +8,7 @@ final class NotesController: NSObject {
     let store = NoteStore(folder: NotesSettings.shared.folder)
     private var open: [UUID: (panel: NotePanel, model: NoteModel)] = [:]
     private var observers: [UUID: [NSObjectProtocol]] = [:]
-    private var notesList: (ownerID: UUID, panel: NotePanel)?
+    private var notesList: (ownerID: UUID?, panel: NotePanel)?
     /// What the fairy is carrying, top card first (empty when its hands are free).
     var carriedScreenshots: () -> [HeldScreenshot] = { [] }
     /// These carried screenshots went into a note; the fairy should let go of (only) them.
@@ -23,9 +23,10 @@ final class NotesController: NSObject {
 
     func flush() { store.flush() }
 
-    /// Take every note off screen but remember which were up, so they come back next time
+    /// Take the notes and list off screen but remember which notes were up, so they come back next time
     /// (the capability is being switched off, or the app is quitting).
     func hideAll() {
+        closeNotesList()
         for id in Array(open.keys) {
             store.update(id) { $0.isOpen = true }
             closePanel(id)
@@ -164,8 +165,13 @@ final class NotesController: NSObject {
     }
 
     private func closePanel(_ id: UUID) {
-        if notesList?.ownerID == id { closeNotesList() }
         guard let entry = open.removeValue(forKey: id) else { return }
+        if let list = notesList, list.ownerID == id {
+            entry.panel.removeChildWindow(list.panel)
+            notesList?.ownerID = nil
+            (list.panel.contentView as? NSHostingView<NoteListView>)?.rootView.ownerID = nil
+            list.panel.orderFrontRegardless()
+        }
         observers.removeValue(forKey: id)?.forEach(NotificationCenter.default.removeObserver)
         entry.panel.orderOut(nil)
     }
@@ -196,7 +202,7 @@ final class NotesController: NSObject {
     private func closeNotesList() {
         guard let list = notesList else { return }
         notesList = nil
-        if let owner = open[list.ownerID] {
+        if let ownerID = list.ownerID, let owner = open[ownerID] {
             owner.panel.removeChildWindow(list.panel)
             owner.model.isNotesListOpen = false
         }

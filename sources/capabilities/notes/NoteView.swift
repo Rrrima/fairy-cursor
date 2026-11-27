@@ -122,15 +122,15 @@ struct NoteView: View {
                 Group {
                     NoteHeaderButton(symbol: "trash", help: "Delete note", action: onDelete)
                     NoteHeaderButton(symbol: "xmark", help: "Put away (find it again in the menu bar)", action: onClose)
+                    NoteHeaderButton(
+                        symbol: "list.bullet",
+                        help: model.isNotesListOpen ? "Hide notes list" : "Show notes list",
+                        action: onToggleNotesList,
+                        isActive: model.isNotesListOpen
+                    )
                 }
                 .transition(.opacity)
             }
-            NoteHeaderButton(
-                symbol: "list.bullet",
-                help: model.isNotesListOpen ? "Hide notes list" : "Show notes list",
-                action: onToggleNotesList,
-                isActive: model.isNotesListOpen
-            )
         }
         .animation(.easeOut(duration: 0.12), value: hovering)
         .padding(.leading, 10)

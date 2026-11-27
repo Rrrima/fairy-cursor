@@ -3,7 +3,7 @@ import SwiftUI
 
 struct NoteListView: View {
     @ObservedObject var store: NoteStore
-    let ownerID: UUID
+    var ownerID: UUID?
     let onSelect: (UUID) -> Void
     let onClose: () -> Void
 
@@ -24,12 +24,20 @@ struct NoteListView: View {
             Rectangle().fill(Theme.hairline).frame(height: 1).padding(.horizontal, 12)
 
             ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(store.recent) { note in
-                        NoteListRow(note: note, isCurrent: note.id == ownerID) { onSelect(note.id) }
+                if store.notes.isEmpty {
+                    Text("No notes yet")
+                        .font(Theme.font(12))
+                        .foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(12)
+                } else {
+                    LazyVStack(spacing: 2) {
+                        ForEach(store.recent) { note in
+                            NoteListRow(note: note, isCurrent: note.id == ownerID) { onSelect(note.id) }
+                        }
                     }
+                    .padding(6)
                 }
-                .padding(6)
             }
         }
         .clipShape(shape)
