@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// Visual tokens ported from agentic-web's "Liquid Clarity" glass system
@@ -62,7 +63,36 @@ public struct GlassShadow: ViewModifier {
 }
 
 extension View {
+    /// The shared glass surface for floating panels and cards.
+    @ViewBuilder
+    public func fairyGlass<S: Shape>(tint: Color, in shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            glassEffect(.regular.tint(tint), in: shape)
+        } else {
+            background {
+                FrostedGlass()
+                    .clipShape(shape)
+                    .overlay(shape.fill(tint))
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+
     public func glassShadow(_ strength: CGFloat = 1) -> some View { modifier(GlassShadow(strength: strength)) }
+}
+
+private struct FrostedGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .popover
+        view.blendingMode = .behindWindow
+        view.state = .active
+        // The panels use fixed dark text, so keep the backdrop light in either appearance.
+        view.appearance = NSAppearance(named: .aqua)
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
 }
 
 /// Layered slate shadow — a crisp contact edge, a mid key shadow and a wide ambient one — with

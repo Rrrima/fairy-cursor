@@ -2,8 +2,6 @@
 
 a cursor that helps with little things. it carries your screenshots: take one, then double-click where it should go. it also takes notes and records your screen.
 
-needs macos 26.
-
 ## download
 
 grab [`fairy-cursor.zip`](https://rrrima.me/fairy-cursor/fairy-cursor.zip) (or visit [the website](https://rrrima.me/fairy-cursor/)), unzip it and open **fairy cursor**. it offers to move itself into `/Applications`; say yes, so macos lists it by name and its permissions stick.
@@ -12,7 +10,7 @@ it's signed and notarized, so it opens like any other app. from 0.5.0 on it upda
 
 ## build from source
 
-you need xcode 26, or just its command line tools (`xcode-select --install`).
+builds from this source run on macos 15 (sequoia) or later. to build, you need xcode 26, or just its command line tools (`xcode-select --install`).
 
 ```sh
 git clone https://github.com/Rrrima/fairy-cursor && cd fairy-cursor

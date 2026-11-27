@@ -89,7 +89,7 @@ struct FairyView: View {
             .overlay(alignment: .bottomLeading) { if shot.isMovie { MovieBadge(duration: shot.duration) } }
             .clipShape(shape)
             .rotationEffect(angle)
-            .glassEffect(.regular.tint(.white.opacity(0.15)), in: tilted)
+            .fairyGlass(tint: .white.opacity(0.15), in: tilted)
             .overlay(tilted.stroke(Theme.hairlineStrong, lineWidth: 1))
             .overlay(tilted.stroke(Theme.rim, lineWidth: 1).padding(0.5))
             .glassShadow(isTop ? 1 : 0.6)

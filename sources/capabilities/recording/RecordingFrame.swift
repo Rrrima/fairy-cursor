@@ -260,7 +260,7 @@ private struct RecordingPill: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
-        .glassEffect(.regular.tint(.white.opacity(0.3)), in: Capsule())
+        .fairyGlass(tint: .white.opacity(0.3), in: Capsule())
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { breathe = true }
         .animation(.easeOut(duration: 0.2), value: model.tool)
@@ -367,7 +367,7 @@ private struct SoundPanel: View {
             .padding(.bottom, 12)
         }
         .frame(width: 300)
-        .glassEffect(.regular.tint(.white.opacity(0.3)), in: shape)
+        .fairyGlass(tint: .white.opacity(0.3), in: shape)
         .glassShadow()
         .animation(.spring(response: 0.36, dampingFraction: 0.8), value: model.sound)
         .animation(.easeOut(duration: 0.2), value: model.denied)

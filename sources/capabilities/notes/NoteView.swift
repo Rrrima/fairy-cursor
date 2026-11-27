@@ -83,7 +83,7 @@ struct NoteView: View {
             ZStack(alignment: .topLeading) {
                 shape
                     .fill(Color.white.opacity(0.42))
-                    .glassEffect(.regular.tint(.white.opacity(0.22)), in: shape)
+                    .fairyGlass(tint: .white.opacity(0.22), in: shape)
                     .overlay(shape.strokeBorder(Theme.hairlineStrong, lineWidth: 1))
                     .overlay(shape.inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
                     .background(CardShadow(shape: shape, lift: grown ? 1 : 0.5))
@@ -365,7 +365,7 @@ private struct SummonView: View {
         let shape = RoundedRectangle(cornerRadius: model.visible ? NoteLayout.summonRadius : Self.orbSize / 2, style: .continuous)
         shape
             .fill(Theme.plate)
-            .glassEffect(.regular.tint(.white.opacity(0.24)), in: shape)
+            .fairyGlass(tint: .white.opacity(0.24), in: shape)
             .overlay(shape.strokeBorder(Theme.hairlineStrong, lineWidth: 1))
             .overlay(shape.inset(by: 0.5).strokeBorder(Theme.rim, lineWidth: 1).opacity(0.9))
             .background(CardShadow(shape: shape, lift: 0.55))
