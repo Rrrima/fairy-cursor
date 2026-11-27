@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import CursorMonitorKit
 import FairyCore
 import FairyKit
@@ -10,11 +11,14 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let state = FairyState()
+    private let sway = FairySway()
     private var panel: FairyPanel!
     private var follower: Follower!
     private var router: DropRouter!
     private var statusItem: NSStatusItem!
     private let settings = AppSettings.shared
+    private let updates = Updates.shared
+    private var watching: Set<AnyCancellable> = []
     private let capabilities = CapabilityRegistry()
     private lazy var settingsWindow = SettingsWindowController(model: SettingsModel(capabilities: capabilities))
     private lazy var guideWindow = GuideWindowController(capabilities: capabilities)
@@ -37,12 +41,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // A download opened where it landed moves itself into Applications and starts again.
         if Relocation.moveToApplicationsIfNeeded() { return }
 
-        panel = FairyPanel(state: state)
-        follower = Follower(panel: panel)
+        panel = FairyPanel(state: state, sway: sway)
+        follower = Follower(panel: panel, sway: sway)
+        settings.$followStyle.sink { [weak self] in self?.follower.style = $0 }.store(in: &watching)
         router = DropRouter(state: state)
         follower.start()
 
         setupStatusItem()
+        updates.start()
         capabilities.onDeactivated = { [weak self] id in self?.release(owner: id) }
         // Nothing asks macOS for anything by itself: the guide does, one permission at a time,
         // when its buttons are pressed. Watching the cursor and keys would each raise a system
@@ -218,14 +224,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// The app's mark (`LogoMark`) as a menu-bar-height template glyph, so the menu bar tints it for
     /// light and dark.
-    static func menuBarGlyph() -> NSImage {
+    ///
+    /// `dotted`: with a small dot at its top right, for "an update is waiting in the menu".
+    static func menuBarGlyph(dotted: Bool = false) -> NSImage {
         // Full height, width hugging the mark: the status item adds its own spacing around it.
         let mark = LogoMark.outline().boundingBoxOfPath
         let height: CGFloat = 17
-        let width = (height * mark.width / mark.height).rounded(.up)
+        let markWidth = (height * mark.width / mark.height).rounded(.up)
+        let dot: CGFloat = 5
+        let width = markWidth + (dotted ? dot + 1 : 0)
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
             guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            ctx.addPath(LogoMark.path(fitting: CGRect(x: 0, y: 0, width: width, height: height), yUp: true))
+            ctx.addPath(LogoMark.path(fitting: CGRect(x: 0, y: 0, width: markWidth, height: height), yUp: true))
+            if dotted { ctx.addEllipse(in: CGRect(x: width - dot, y: height - dot - 1, width: dot, height: dot)) }
             ctx.setFillColor(NSColor.black.cgColor)
             ctx.fillPath()
             return true
@@ -248,10 +259,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.autoenablesItems = false
         menu.delegate = self
         statusItem.menu = menu
+
+        // An update found in the background waits as a dot on the mark until the menu is used.
+        updates.$waiting.map { $0 != nil }.removeDuplicates().sink { [weak self] dotted in
+            guard let self = self else { return }
+            let glyph = Self.menuBarGlyph(dotted: dotted)
+            self.statusItem.length = glyph.size.width + 2
+            self.statusItem.button?.image = glyph
+        }.store(in: &watching)
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        if let version = updates.waiting {
+            menu.addItem(ActionMenuItem("Update to \(version)…") { [weak self] in self?.updates.check() })
+            menu.addItem(.separator())
+        }
         let held = state.deliverable
         let n = held.count
         // When every held screenshot is already saved, letting go doesn't delete anything.
@@ -281,6 +304,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(ActionMenuItem("Welcome Guide…") { [weak self] in self?.guideWindow.show() })
         menu.addItem(ActionMenuItem("Settings…") { [weak self] in self?.settingsWindow.show() })
+        if updates.isAvailable, updates.waiting == nil {
+            menu.addItem(ActionMenuItem("Check for Updates…") { [weak self] in self?.updates.check() })
+        }
         menu.addItem(NSMenuItem(title: "Quit Fairy Cursor", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
     }
 

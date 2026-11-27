@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import FairyCore
 import FairyKit
 
 /// The fairy's own settings (each capability keeps its own). Stored in UserDefaults; folders are
@@ -17,7 +18,14 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(capturesFolder.path, forKey: capturesFolderKey) }
     }
 
+    /// How the held pile travels after the cursor.
+    @Published var followStyle: FollowStyle {
+        didSet { defaults.set(followStyle.rawValue, forKey: followStyleKey) }
+    }
+    private let followStyleKey = "follow.style"
+
     private init() {
+        followStyle = defaults.string(forKey: followStyleKey).flatMap(FollowStyle.init(rawValue:)) ?? .calm
         capturesFolder = defaults.string(forKey: capturesFolderKey).map { URL(fileURLWithPath: $0, isDirectory: true) }
             ?? SystemScreenshotLocation.original
     }

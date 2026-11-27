@@ -1,4 +1,5 @@
 import AppKit
+import FairyCore
 import FairyKit
 import ServiceManagement
 import SwiftUI
@@ -8,6 +9,7 @@ import SwiftUI
 @MainActor
 final class SettingsModel: ObservableObject {
     let settings = AppSettings.shared
+    let updates = Updates.shared
     let capabilities: CapabilityRegistry
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @Published var granted: Set<Permission> = []
@@ -49,7 +51,7 @@ final class SettingsWindowController {
         model.refresh()
         if window == nil {
             let window = SettingsPanel()
-            let hosting = NSHostingView(rootView: SettingsView(model: model, settings: model.settings, capabilities: model.capabilities, close: { [weak window] in
+            let hosting = NSHostingView(rootView: SettingsView(model: model, settings: model.settings, updates: model.updates, capabilities: model.capabilities, close: { [weak window] in
                 window?.orderOut(nil)
             }))
             hosting.wantsLayer = true
@@ -209,6 +211,7 @@ private typealias Ink = SettingsInk
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var settings: AppSettings
+    @ObservedObject var updates: Updates
     @ObservedObject var capabilities: CapabilityRegistry
     let close: () -> Void
 
@@ -269,6 +272,12 @@ struct SettingsView: View {
             }
 
             section("General") {
+                ChoiceRow(
+                    title: "Following",
+                    detail: Self.followDetail(settings.followStyle),
+                    options: [(.close, "Close"), (.calm, "Calm"), (.lively, "Lively")],
+                    selection: $settings.followStyle
+                )
                 FolderRow(
                     title: "Captures folder",
                     folder: settings.capturesFolder,
@@ -281,6 +290,14 @@ struct SettingsView: View {
                 ))
             }
 
+            if updates.isAvailable {
+                section("Updates") {
+                    UpdateRow(version: updates.version, waiting: updates.waiting, check: updates.check)
+                    ToggleRow(title: "Check automatically", detail: "Looks for a new version about once a day.",
+                              isOn: $updates.checksAutomatically)
+                }
+            }
+
             section("Permissions") {
                 ForEach(Permission.allCases.filter { capabilities.neededPermissions.contains($0) }, id: \.self) { permission in
                     PermissionRow(title: permission.title, granted: model.granted.contains(permission), open: { Permissions.allow(permission) })
@@ -288,6 +305,15 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// What each way of following looks like, in a line.
+    private static func followDetail(_ style: FollowStyle) -> String {
+        switch style {
+        case .close: return "What you hold stays right by the cursor."
+        case .calm: return "What you hold glides after the cursor."
+        case .lively: return "What you hold swings and leans as you move, like on the website."
+        }
     }
 
     /// A small grey label, then its rows straight on the page.
@@ -345,6 +371,30 @@ private struct CapabilityRow: View {
                     .padding(.vertical, 13)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 13, style: .continuous).fill(Color(white: 0.972)))
+            }
+        }
+    }
+}
+
+/// Which version this is, and a button that looks for a newer one (or installs the one found).
+private struct UpdateRow: View {
+    let version: String
+    let waiting: String?
+    let check: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Fairy Cursor \(version)").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.primary)
+                if let waiting = waiting {
+                    Text("\(waiting) is ready to install.").font(.system(size: 12)).foregroundStyle(Ink.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            if let waiting = waiting {
+                InkButton(title: "Update to \(waiting)…", action: check)
+            } else {
+                QuietButton(title: "Check for updates", action: check)
             }
         }
     }

@@ -54,6 +54,60 @@ public struct ToggleRow: View {
     }
 }
 
+/// A title, an explanation under it, and a few choices on the right of which one is picked.
+/// The picked one is ink, like a switch that's on, and the ink slides between them.
+public struct ChoiceRow<Value: Hashable>: View {
+    let title: String
+    let detail: String?
+    let options: [(value: Value, label: String)]
+    @Binding var selection: Value
+    @Namespace private var thumb
+
+    public init(title: String, detail: String? = nil, options: [(Value, String)], selection: Binding<Value>) {
+        self.title = title
+        self.detail = detail
+        self.options = options.map { (value: $0.0, label: $0.1) }
+        self._selection = selection
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .center, spacing: 14) {
+                Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(SettingsInk.primary)
+                Spacer(minLength: 8)
+                HStack(spacing: 0) {
+                    ForEach(options, id: \.value) { option in
+                        let picked = option.value == selection
+                        Text(option.label)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(picked ? Color.white : SettingsInk.secondary)
+                            .padding(.horizontal, 11)
+                            .padding(.vertical, 4.5)
+                            .background {
+                                if picked {
+                                    Capsule().fill(SettingsInk.primary).matchedGeometryEffect(id: "picked", in: thumb)
+                                }
+                            }
+                            .contentShape(Capsule())
+                            .onTapGesture { selection = option.value }
+                            .accessibilityAddTraits(picked ? [.isButton, .isSelected] : .isButton)
+                    }
+                }
+                .padding(2)
+                .background(Capsule().fill(SettingsInk.fill))
+                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: selection)
+            }
+            if let detail = detail {
+                Text(detail)
+                    .font(.system(size: 12))
+                    .lineSpacing(1.5)
+                    .foregroundStyle(SettingsInk.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
 /// A folder the user picks: its title and path, with Change… and Open beside them.
 public struct FolderRow: View {
     let title: String

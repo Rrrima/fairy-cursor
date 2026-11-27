@@ -12,7 +12,11 @@ let ausm: Package.Dependency = localAUSM.map { .package(name: "AUSM", path: $0) 
 let package = Package(
     name: "FairyCursor",
     platforms: [.macOS("26.0")],
-    dependencies: [ausm],
+    dependencies: [
+        ausm,
+        // the updater: checks the website's feed for a newer version and installs it in place.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0"),
+    ],
     targets: [
         // pure decision logic (shake detection, the held pile, drop and paste policies, the
         // recording viewport): no appkit, no live accessibility or event taps, fully unit-tested.
@@ -46,6 +50,7 @@ let package = Package(
                 "FairyNotes",
                 "FairyRecording",
                 .product(name: "CursorMonitorKit", package: "AUSM"),
+                .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "sources/app"
         ),
