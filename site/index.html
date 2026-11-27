@@ -29,16 +29,14 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 .top { display: flex; align-items: center; gap: 9px; padding: 20px 0; }
 .top img { width: 24px; height: 24px; }
 .top .name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
-/* What's new, said once and quietly beside the name: a small live dot and one line. */
-.new { display: inline-flex; align-items: center; gap: 7px; margin: 0 auto 0 8px; min-width: 0; font-size: 12.5px; color: var(--ink-2); transition: color .16s ease; }
+/* What's new, said once and quietly beside the name: a slash drawn by hand, then one line. */
+.new { display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 0 4px; min-width: 0; font-size: 12.5px; color: var(--ink-2); transition: color .16s ease; }
 .new:hover { color: var(--ink); }
-.new i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: hsl(212, 72%, 56%); animation: new-breathe 2.6s ease-in-out infinite; }
+.new svg { flex: none; width: 9px; height: 18px; fill: none; stroke: var(--ink-3); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .new span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .new b { font-weight: 500; color: var(--ink); }
-@keyframes new-breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 /* On a phone the header has no room beside the name: the line takes its own row underneath. */
 @media (max-width: 640px) { .top { flex-wrap: wrap; } .top .name { margin-right: auto; } .new { order: 3; flex-basis: 100%; margin: 6px 0 0 1px; } }
-@media (prefers-reduced-motion: reduce) { .new i { animation: none; } }
 .get { font-size: 13px; font-weight: 500; color: #fff; background: var(--ink); padding: 7px 15px; border-radius: 999px; transition: opacity .16s ease; }
 .get:hover, .get.hover { opacity: .82; }
 /* The source: the quieter button, always after Download. */
@@ -179,8 +177,8 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 }
 
 /* ── Feedback ── A note, made the way the app makes one: a glass pill at the cursor, and the
-   click grows the note out of it. "Leave a note" in the footer does the same from where it sits;
-   holding ⌥ over empty space and clicking does it anywhere on the page. */
+   click grows the note out of it, from where "Send feedback" sits. It says plainly that it is
+   feedback and who reads it: called "a note", it read as a place to try the app's notes. */
 /* The way in sits right under the scene: just the words, and a note drawn the way the mark is
    drawn (one fat round stroke, the same two eyes), a little tilted. Point at it and the glass
    block the app shows under ⌥ forms around the note; click and the note grows out of that block. */
@@ -261,7 +259,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   <header class="top">
     <img src="/fairy-cursor/icon.png" alt="">
     <span class="name">Fairy Cursor</span>
-    <a class="new" href="https://github.com/Rrrima/fairy-cursor/releases/latest" data-umami-event="outbound-click" data-umami-event-to="fairy-release-notes"><i></i><span><b>New in 0.4.0</b> · recordings can carry sound</span></a>
+    <a class="new" href="https://github.com/Rrrima/fairy-cursor/releases/latest" data-umami-event="outbound-click" data-umami-event-to="fairy-release-notes"><svg viewBox="0 0 9 18" aria-hidden="true"><path d="M1.5 16.5c.2-1.7 1.3-3.2 2-5.3.8-2.5 1.1-4.8 2.3-7 .5-.9.9-1.8 1.8-2.7"/></svg><span><b>New in 0.4.0</b> · recordings can carry sound</span></a>
     <a class="get" href="/fairy-cursor/fairy-cursor.zip" data-umami-event="fairy-download" data-umami-event-from="top">Download</a>
     <a class="gh" href="https://github.com/Rrrima/fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="fairy-github" data-umami-event-from="top"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.28-1.68-1.28-1.68-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.19 1.76 1.19 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.09-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.2-1.49 3.16-1.18 3.16-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.83 1.18 3.09 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.51 11.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/></svg>GitHub</a>
   </header>
@@ -291,24 +289,24 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
 
     <div class="cap swap"><span class="nm"></span><span class="ks"></span></div>
     <div class="dots" role="group" aria-label="Parts of the demo"></div>
-    <button type="button" class="fb-go" data-umami-event="feedback-open"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.6h7.4l5.8 5.8v7.4a3.6 3.6 0 0 1-3.6 3.6H7.2a3.6 3.6 0 0 1-3.6-3.6V7.2a3.6 3.6 0 0 1 3.6-3.6Z"/><ellipse cx="9.5" cy="13.2" rx="1.3" ry="2.15" transform="rotate(-6.9 9.5 13.2)"/><ellipse cx="13.5" cy="12.7" rx="1.3" ry="2.15" transform="rotate(-6.9 13.5 12.7)"/></svg></span>Leave a note</button>
+    <button type="button" class="fb-go" data-umami-event="feedback-open"><span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 3.6h7.4l5.8 5.8v7.4a3.6 3.6 0 0 1-3.6 3.6H7.2a3.6 3.6 0 0 1-3.6-3.6V7.2a3.6 3.6 0 0 1 3.6-3.6Z"/><ellipse cx="9.5" cy="13.2" rx="1.3" ry="2.15" transform="rotate(-6.9 9.5 13.2)"/><ellipse cx="13.5" cy="12.7" rx="1.3" ry="2.15" transform="rotate(-6.9 13.5 12.7)"/></svg></span>Send feedback</button>
   </div>
 
   <footer class="foot"><span>macOS 26</span><span>·</span><a href="https://rrrima.me/?utm_source=fairy-cursor" data-umami-event="outbound-click" data-umami-event-to="rrrima-home">Made by Rima</a></footer>
 </div>
 
 <div class="fb-pill" aria-hidden="true"></div>
-<form class="fb" role="dialog" aria-label="Leave a note for Rima" novalidate>
+<form class="fb" role="dialog" aria-label="Send feedback to Rima" novalidate>
   <div class="in">
     <div class="hd">
-      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/></svg>A note to Rima</span>
+      <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 0 1 2.9 2.9L7.5 18.3 3.5 19.5l1.2-4Z"/></svg>Feedback for Rima</span>
       <button type="button" class="x" aria-label="Close"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
     </div>
-    <textarea name="message" placeholder="A wish for your cursor, something broken, or any other thought." aria-label="Your note" maxlength="4000"></textarea>
+    <textarea name="message" placeholder="This goes to Rima: a wish for your cursor, something broken, or any other thought." aria-label="Your feedback" maxlength="4000"></textarea>
     <div class="err" role="alert">Couldn’t send. Try again?</div>
     <div class="ft">
       <input type="email" name="email" placeholder="Email, if you’d like a reply" aria-label="Email, optional" autocomplete="email">
-      <button type="submit" class="send" disabled>Send</button>
+      <button type="submit" class="send" disabled>Send to Rima</button>
     </div>
     <div class="done" aria-live="polite"><span>Thank you. Got it.</span><small hidden>Preview: nothing is sent anywhere yet.</small></div>
   </div>
@@ -764,7 +762,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     setTimeout(() => { if (!isOpen) note.classList.remove('open', 'out', 'sent', 'failed'); }, 200);
   }
 
-  // "Leave a note": the glass block is already around the icon when you point at it (it forms
+  // "Send feedback": the glass block is already around the icon when you point at it (it forms
   // first on a touch screen), and the note grows out of exactly that block.
   goEl.addEventListener('click', () => {
     if (isOpen) { text.focus(); return; }
@@ -777,7 +775,9 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
     }, shown ? 0 : 260);
   });
 
-  // The app's own gesture: hold ⌥ over empty space, then click.
+  // The app's own gesture (hold ⌥ over empty space, then click) is switched off here: people
+  // who had just watched it in the demo tried it, got this note, and sent "hello world".
+  const GESTURE = false;
   addEventListener('mousemove', e => {
     mouse = { x: e.clientX, y: e.clientY }; over = e.target;
     if (alt && !isOpen) empty(over) ? (pillOn() ? put(pill, mouse.x, mouse.y) : arm || showPill(mouse.x, mouse.y)) : hidePill();
@@ -785,7 +785,7 @@ a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-rad
   addEventListener('keydown', e => {
     if (e.key === 'Escape') { close(); return; }
     if (e.key !== 'Alt') { if (alt) { clearTimeout(arm); arm = 0; alt = false; hidePill(); } return; }
-    if (alt || isOpen || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    if (!GESTURE || alt || isOpen || e.metaKey || e.ctrlKey || e.shiftKey) return;
     alt = true;
     arm = setTimeout(() => { arm = 0; if (alt && !isOpen && empty(over)) showPill(mouse.x, mouse.y); }, HOLD);
   });
