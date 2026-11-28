@@ -7,6 +7,7 @@ struct NoteListView: View {
     let onSelect: (UUID) -> Void
     let onDelete: (UUID) -> Void
     let onClose: () -> Void
+    let onDrag: () -> Void
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: NoteLayout.radius, style: .continuous)
@@ -22,6 +23,7 @@ struct NoteListView: View {
             .padding(.leading, 12)
             .padding(.trailing, 8)
             .frame(height: 32)
+            .background(WindowDragArea(onDrag: onDrag))
             Rectangle().fill(Theme.hairline).frame(height: 1).padding(.horizontal, 12)
 
             ScrollView {

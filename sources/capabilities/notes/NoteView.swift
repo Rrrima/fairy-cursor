@@ -264,13 +264,21 @@ struct NoteHeaderButton: View {
 }
 
 /// Header/footer background that drags the window.
-private struct WindowDragArea: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { DragView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+struct WindowDragArea: NSViewRepresentable {
+    var onDrag: (() -> Void)? = nil
+
+    func makeNSView(context: Context) -> DragView { DragView() }
+    func updateNSView(_ nsView: DragView, context: Context) { nsView.onDrag = onDrag }
 
     final class DragView: NSView {
+        var onDrag: (() -> Void)?
         override var mouseDownCanMoveWindow: Bool { true }
-        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+
+        override func mouseDown(with event: NSEvent) {
+            guard let window else { return }
+            onDrag?()
+            window.performDrag(with: event)
+        }
     }
 }
 

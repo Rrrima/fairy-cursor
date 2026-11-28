@@ -164,13 +164,11 @@ final class NotesController: NSObject {
     }
 
     private func closePanel(_ id: UUID) {
-        guard let entry = open.removeValue(forKey: id) else { return }
         if let list = notesList, list.ownerID == id {
-            entry.panel.removeChildWindow(list.panel)
-            notesList?.ownerID = nil
-            (list.panel.contentView as? NSHostingView<NoteListView>)?.rootView.ownerID = nil
+            detachNotesList()
             list.panel.orderFrontRegardless()
         }
+        guard let entry = open.removeValue(forKey: id) else { return }
         observers.removeValue(forKey: id)?.forEach(NotificationCenter.default.removeObserver)
         entry.panel.orderOut(nil)
     }
@@ -189,7 +187,8 @@ final class NotesController: NSObject {
             ownerID: id,
             onSelect: { [weak self] in self?.openNote(id: $0) },
             onDelete: { [weak self] in self?.delete($0) },
-            onClose: { [weak self] in self?.closeNotesList() }
+            onClose: { [weak self] in self?.closeNotesList() },
+            onDrag: { [weak self] in self?.detachNotesList() }
         ))
         hosting.sizingOptions = []
         panel.contentView = hosting
@@ -199,13 +198,18 @@ final class NotesController: NSObject {
         panel.orderFrontRegardless()
     }
 
+    private func detachNotesList() {
+        guard let list = notesList, let id = list.ownerID, let owner = open[id] else { return }
+        notesList?.ownerID = nil
+        owner.panel.removeChildWindow(list.panel)
+        owner.model.isNotesListOpen = false
+        (list.panel.contentView as? NSHostingView<NoteListView>)?.rootView.ownerID = nil
+    }
+
     private func closeNotesList() {
         guard let list = notesList else { return }
+        detachNotesList()
         notesList = nil
-        if let ownerID = list.ownerID, let owner = open[ownerID] {
-            owner.panel.removeChildWindow(list.panel)
-            owner.model.isNotesListOpen = false
-        }
         list.panel.orderOut(nil)
     }
 
