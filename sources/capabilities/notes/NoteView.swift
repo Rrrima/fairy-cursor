@@ -18,14 +18,11 @@ enum NoteLayout {
 @MainActor
 final class NoteModel: ObservableObject {
     @Published private(set) var note: Note
-    /// Grow out of the summon pill instead of appearing at full size.
-    let growsIn: Bool
     let focusOnOpen: Bool
     var onChange: ((Note) -> Void)?
 
-    init(note: Note, growsIn: Bool, focusOnOpen: Bool) {
+    init(note: Note, focusOnOpen: Bool) {
         self.note = note
-        self.growsIn = growsIn
         self.focusOnOpen = focusOnOpen
     }
 
@@ -64,6 +61,8 @@ final class NotePanel: NSPanel {
 
 struct NoteView: View {
     @ObservedObject var model: NoteModel
+    /// While opening, the center of the pill relative to the card's top-left corner.
+    let summonCenter: CGPoint?
     let onClose: () -> Void
     let onDelete: () -> Void
     let onOpenOrigin: () -> Void
@@ -95,16 +94,23 @@ struct NoteView: View {
                 }
             }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .offset(openingOffset)
         }
         .padding(NoteLayout.inset)
         .onHover { hovering = $0 }
         .onAppear {
-            if model.growsIn {
+            if summonCenter != nil {
                 withAnimation(.spring(response: 0.34, dampingFraction: 0.78)) { grown = true }
             } else {
                 grown = true
             }
         }
+    }
+
+    private var openingOffset: CGSize {
+        guard !grown, let summonCenter else { return .zero }
+        return CGSize(width: summonCenter.x - NoteLayout.summonSize.width / 2,
+                      height: summonCenter.y - NoteLayout.summonSize.height / 2)
     }
 
     private var content: some View {

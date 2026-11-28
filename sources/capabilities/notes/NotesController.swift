@@ -1,4 +1,5 @@
 import AppKit
+import FairyCore
 import FairyKit
 import SwiftUI
 
@@ -16,7 +17,7 @@ final class NotesController: NSObject {
     /// Reopen the notes that were on screen when the app last quit.
     func restore() {
         for note in store.recent.reversed() where note.isOpen {
-            show(note, growsIn: false, focus: false)
+            show(note, focus: false)
         }
     }
 
@@ -48,26 +49,24 @@ final class NotesController: NSObject {
 
     /// A note grown out of the summon pill at `mouse` (AppKit coordinates).
     func create(at mouse: CGPoint, origin: NoteOrigin) {
-        let size = NoteLayout.noteSize
-        let inset = NoteLayout.inset
-        // The card's top-left starts where the pill's was, so it grows out of it.
-        let cardTopLeft = CGPoint(x: mouse.x - NoteLayout.summonSize.width / 2, y: mouse.y + NoteLayout.summonSize.height / 2)
-        var frame = NSRect(
-            x: cardTopLeft.x - inset,
-            y: cardTopLeft.y + inset - (size.height + inset * 2),
-            width: size.width + inset * 2,
-            height: size.height + inset * 2
+        let screens = NSScreen.screens
+        let screen = screens.first { $0.frame.contains(mouse) } ?? screens.first {
+            // CGRect.contains excludes the top and right edges.
+            let frame = $0.frame
+            return (frame.minX...frame.maxX).contains(mouse.x) && (frame.minY...frame.maxY).contains(mouse.y)
+        } ?? NSScreen.main
+        let placement = NotePlacement(
+            cursor: mouse,
+            cardSize: NoteLayout.noteSize,
+            pillSize: NoteLayout.summonSize,
+            visibleFrame: screen?.visibleFrame
         )
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main {
-            let bounds = screen.visibleFrame.insetBy(dx: -inset, dy: -inset)
-            frame.origin.x = min(max(frame.minX, bounds.minX), bounds.maxX - frame.width)
-            frame.origin.y = min(max(frame.minY, bounds.minY), bounds.maxY - frame.height)
-        }
+        let frame = placement.cardFrame.insetBy(dx: -NoteLayout.inset, dy: -NoteLayout.inset)
         let now = Date()
         let note = Note(id: UUID(), text: "", createdAt: now, updatedAt: now, origin: origin, frame: frame, isOpen: true)
         NoteLog.write("note created from \(origin.kind.rawValue) (\(origin.label)) frame=\(frame)")
         store.insert(note)
-        show(note, growsIn: true, focus: true)
+        show(note, summonCenter: placement.summonCenter, focus: true)
     }
 
     /// Save what the fairy carries into Notes/attachments and return Markdown for it.
@@ -101,7 +100,7 @@ final class NotesController: NSObject {
 
     // MARK: - Panels
 
-    private func show(_ note: Note, growsIn: Bool, focus: Bool) {
+    private func show(_ note: Note, summonCenter: CGPoint? = nil, focus: Bool) {
         if let existing = open[note.id] {
             existing.panel.orderFrontRegardless()
             if focus { existing.panel.makeKey() }
@@ -109,7 +108,7 @@ final class NotesController: NSObject {
         }
         let id = note.id
         let panel = NotePanel(noteID: id, frame: note.frame)
-        let model = NoteModel(note: note, growsIn: growsIn, focusOnOpen: focus)
+        let model = NoteModel(note: note, focusOnOpen: focus)
         model.onChange = { [weak self] changed in
             self?.store.update(id) {
                 $0.text = changed.text
@@ -118,6 +117,7 @@ final class NotesController: NSObject {
         }
         let view = NoteView(
             model: model,
+            summonCenter: summonCenter,
             onClose: { [weak self] in self?.putAway(id) },
             onDelete: { [weak self] in self?.delete(id) },
             onOpenOrigin: { [weak self] in self?.openOrigin(id) },
@@ -246,7 +246,7 @@ final class NotesController: NSObject {
 
     @objc private func openNote(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID, let note = store.notes[id] else { return }
-        show(note, growsIn: false, focus: true)
+        show(note, focus: true)
     }
 
     @objc private func deleteNote(_ sender: NSMenuItem) {
