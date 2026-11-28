@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 
 /// Where a note was started: the Desktop, an app window, or a web page.
 struct NoteOrigin: Codable, Equatable {
@@ -87,8 +88,8 @@ struct Note: Codable, Identifiable, Equatable {
 /// The file is named after the note's first line and renamed as that changes. A blank note has
 /// no file until something is typed in it.
 @MainActor
-final class NoteStore {
-    private(set) var notes: [UUID: Note] = [:]
+final class NoteStore: ObservableObject {
+    @Published private(set) var notes: [UUID: Note] = [:]
     private(set) var folder: URL
     /// The file each note was last written to (absent for a blank note).
     private var files: [UUID: URL] = [:]

@@ -34,12 +34,12 @@ public final class NotesCapability: Capability {
         // A note takes the pile itself (through its own double-click), so the fairy leaves
         // double-clicks over notes alone and says what one would do.
         host.setDropZone(DropZone(hint: "double-click to add to note") { [weak notes] point in
-            notes?.containsPoint(point) ?? false
+            notes?.containsNote(at: point) ?? false
         }, owner: id)
 
         let summoner = NoteSummoner()
         summoner.isBlocked = { [weak self] in self?.host?.isScreenBusy ?? true }
-        summoner.isOverOwnWindow = { [weak notes] point in notes?.containsPoint(point) ?? false }
+        summoner.isOverOwnWindow = { [weak notes] point in notes?.containsOwnWindow(at: point) ?? false }
         summoner.onSummon = { [weak notes] mouse, origin in
             FairyLog.write("note from \(origin.kind.rawValue): \(origin.label)")
             notes?.create(at: mouse, origin: origin)

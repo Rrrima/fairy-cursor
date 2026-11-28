@@ -8,6 +8,7 @@ final class NotesController: NSObject {
     let store = NoteStore(folder: NotesSettings.shared.folder)
     private var open: [UUID: (panel: NotePanel, model: NoteModel)] = [:]
     private var observers: [UUID: [NSObjectProtocol]] = [:]
+    private var notesList: (ownerID: UUID?, panel: NotePanel)?
     /// What the fairy is carrying, top card first (empty when its hands are free).
     var carriedScreenshots: () -> [HeldScreenshot] = { [] }
     /// These carried screenshots went into a note; the fairy should let go of (only) them.
@@ -22,9 +23,10 @@ final class NotesController: NSObject {
 
     func flush() { store.flush() }
 
-    /// Take every note off screen but remember which were up, so they come back next time
+    /// Take the notes and list off screen but remember which notes were up, so they come back next time
     /// (the capability is being switched off, or the app is quitting).
     func hideAll() {
+        closeNotesList()
         for id in Array(open.keys) {
             store.update(id) { $0.isOpen = true }
             closePanel(id)
@@ -95,8 +97,18 @@ final class NotesController: NSObject {
         return lines.joined(separator: "\n")
     }
 
-    func containsPoint(_ point: CGPoint) -> Bool {
-        open.values.contains { $0.panel.isVisible && $0.panel.frame.insetBy(dx: NoteLayout.inset, dy: NoteLayout.inset).contains(point) }
+    func containsNote(at point: CGPoint) -> Bool {
+        guard !containsNotesList(at: point) else { return false }
+        return open.values.contains { $0.panel.isVisible && $0.panel.frame.insetBy(dx: NoteLayout.inset, dy: NoteLayout.inset).contains(point) }
+    }
+
+    func containsOwnWindow(at point: CGPoint) -> Bool {
+        containsNotesList(at: point) || containsNote(at: point)
+    }
+
+    private func containsNotesList(at point: CGPoint) -> Bool {
+        guard let panel = notesList?.panel else { return false }
+        return panel.isVisible && panel.frame.contains(point)
     }
 
     // MARK: - Panels
@@ -108,7 +120,7 @@ final class NotesController: NSObject {
             return
         }
         let id = note.id
-        let panel = NotePanel(noteID: id, frame: note.frame)
+        let panel = NotePanel(frame: note.frame)
         let model = NoteModel(note: note, growsIn: growsIn, focusOnOpen: focus)
         model.onChange = { [weak self] changed in
             self?.store.update(id) {
@@ -119,8 +131,8 @@ final class NotesController: NSObject {
         let view = NoteView(
             model: model,
             onClose: { [weak self] in self?.putAway(id) },
-            onDelete: { [weak self] in self?.delete(id) },
             onOpenOrigin: { [weak self] in self?.openOrigin(id) },
+            onToggleNotesList: { [weak self] in self?.toggleNotesList(for: id) },
             attachmentsBase: store.folder,
             onDoubleClick: { [weak self] in self?.attachCarriedScreenshots() }
         )
@@ -131,8 +143,12 @@ final class NotesController: NSObject {
 
         let saveFrame: @Sendable (Notification) -> Void = { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self = self, let frame = self.open[id]?.panel.frame else { return }
-                self.store.update(id) { $0.frame = frame }
+                guard let self = self, let panel = self.open[id]?.panel else { return }
+                self.store.update(id) { $0.frame = panel.frame }
+                if let list = self.notesList, list.ownerID == id {
+                    let frame = self.notesListFrame(beside: panel)
+                    if list.panel.frame != frame { list.panel.setFrame(frame, display: true) }
+                }
             }
         }
         let center = NotificationCenter.default
@@ -148,9 +164,59 @@ final class NotesController: NSObject {
     }
 
     private func closePanel(_ id: UUID) {
+        if let list = notesList, list.ownerID == id {
+            detachNotesList()
+            list.panel.orderFrontRegardless()
+        }
         guard let entry = open.removeValue(forKey: id) else { return }
         observers.removeValue(forKey: id)?.forEach(NotificationCenter.default.removeObserver)
         entry.panel.orderOut(nil)
+    }
+
+    private func toggleNotesList(for id: UUID) {
+        let wasOpen = notesList?.ownerID == id
+        closeNotesList()
+        guard !wasOpen, let owner = open[id] else { return }
+
+        refreshFromDisk()
+        let panel = NotePanel(frame: notesListFrame(beside: owner.panel))
+        panel.title = "Notes"
+        panel.hasShadow = true
+        let hosting = NSHostingView(rootView: NoteListView(
+            store: store,
+            ownerID: id,
+            onSelect: { [weak self] in self?.openNote(id: $0) },
+            onDelete: { [weak self] in self?.delete($0) },
+            onClose: { [weak self] in self?.closeNotesList() },
+            onDrag: { [weak self] in self?.detachNotesList() }
+        ))
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+        notesList = (id, panel)
+        owner.model.isNotesListOpen = true
+        owner.panel.addChildWindow(panel, ordered: .above)
+        panel.orderFrontRegardless()
+    }
+
+    private func detachNotesList() {
+        guard let list = notesList, let id = list.ownerID, let owner = open[id] else { return }
+        notesList?.ownerID = nil
+        owner.panel.removeChildWindow(list.panel)
+        owner.model.isNotesListOpen = false
+        (list.panel.contentView as? NSHostingView<NoteListView>)?.rootView.ownerID = nil
+    }
+
+    private func closeNotesList() {
+        guard let list = notesList else { return }
+        detachNotesList()
+        notesList = nil
+        list.panel.orderOut(nil)
+    }
+
+    private func notesListFrame(beside panel: NotePanel) -> NSRect {
+        let card = panel.frame.insetBy(dx: NoteLayout.inset, dy: NoteLayout.inset)
+        let screen = panel.screen ?? NSScreen.main
+        return NoteListLayout.frame(beside: card, within: screen?.visibleFrame)
     }
 
     /// Take the note off screen; it stays in the menu. Empty notes are simply discarded.
@@ -245,7 +311,12 @@ final class NotesController: NSObject {
     }
 
     @objc private func openNote(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? UUID, let note = store.notes[id] else { return }
+        guard let id = sender.representedObject as? UUID else { return }
+        openNote(id: id)
+    }
+
+    private func openNote(id: UUID) {
+        guard let note = store.notes[id] else { return }
         show(note, growsIn: false, focus: true)
     }
 
